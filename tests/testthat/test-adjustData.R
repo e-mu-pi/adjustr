@@ -371,6 +371,11 @@ test_that("true_return computed based on starting period with one share at closi
                equals(FALSE))
 })
 
+test_that("compounded_value computed as if dividends are reinvested in fractional shares",{
+  expect_that( TRUE,
+               equals(FALSE))
+})
+
 test_that("true_value ignores dividends/splits outside time period except to adjust dividends",{
   price_data <- make_data_table("index symbol high close
                                 2015-03-16 SYM 56.6  55.94
@@ -464,9 +469,15 @@ test_that("true_value has same return as adjusted close",{
   adjusted_price <- quantmod::adjustOHLC( price, symbol.name = symbol)
   true_value_price <- true_value( price, dividend, splits = splits)
   
+  true_value_price <- as.data.table(true_value_price)
+  true_value_price[, compoundedshares := trueshares + cumsum(trueshares*truedividend/close)]
+  true_value_price[, compoundedvalue := compoundedshares * close + cumsum(compoundedshares*truedividend)]
+  true_value_price <- as.xts(true_value_price)
+  
   adj_col <- paste0(symbol,".Close")
   tv_col <- paste0(symbol,".Truevalue")
-  as.n <- as.numeric
+  cv_col <- paste0(symbol,".Compoundedvalue")
+  
   quick_return <- function(x) {
     n <- nrow(x)
     (as.numeric(x[n,]) - as.numeric(x[1,]) ) / as.numeric(x[1,])
@@ -477,16 +488,25 @@ test_that("true_value has same return as adjusted close",{
   }
   adjusted_return <- quick_return(adjusted_price[, adj_col])
   tv_return <- quick_return( true_value_price[, tv_col])
+  cv_return <- quick_return( true_value_price[, cv_col])
   
   #return since 2007 is off by 25%
   expect_that( tv_return,
                equals(adjusted_return, tolerance = 0.25, scale = 1) )
+  #reinvesting the dividend using fractional shares gets us closer to
+  #what the adjustment is doing
+  expect_that( cv_return,
+               equals(adjusted_return, tolerance = 0.03, scale = 1) )
   
   adj_daily <- quantmod::dailyReturn( adjusted_price[, adj_col] )
   tv_daily <- quantmod::dailyReturn( true_value_price[, tv_col] )
+  cv_daily <- quantmod::dailyReturn( true_value_price[, cv_col] )
   #they don't really match because adj_daily retroactively redefines the 
   #price p on the day before the dividend d to be p-d, so the daily return
   #will be wrt p-d, but tv_daily will use p.
   expect_that( tv_daily, 
-               equals( adj_daily, tolerance = 2e-2) )
+               equals( adj_daily, tolerance = 2e-4, scale = 1) )
+  #the daily compounded return matches worse on average
+  expect_that( cv_daily, 
+               equals( adj_daily, tolerance = 3e-4, scale = 1) )
 })
