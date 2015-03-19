@@ -116,6 +116,7 @@ true_value <- function(price_data, dividend, ..., splits) {
     price <- copy(price_data)
   }
   has_symbol <- function(x) "symbol" %in% names(x)
+  has_some <- function(x,field) ! is.null(x) && ! all(is.na(x)) && ! all(is.na(x[,field, with = FALSE]))
   if ( has_symbol(price) ) {
     merge_key <- c("symbol", "index")
     available_symbols <- price[, unique(symbol)]
@@ -149,7 +150,8 @@ true_value <- function(price_data, dividend, ..., splits) {
     }
     x
   }
-  normalize(dividend)
+  dividend <- normalize(dividend) # I thought the assignment was unnecessary because
+  # data.tables are passed by reference, but it wasn't always working??
   if( xts::is.xts(splits) ) {
     splits <- as.data.table(splits)
     if( "spl" %in% names(splits) ) {
@@ -159,13 +161,13 @@ true_value <- function(price_data, dividend, ..., splits) {
       setnames(splits, "V1", "split")
     }
   }
-  normalize(splits)
+  splits <- normalize(splits)
   index_class <- class(price[,index])
   is_date <- all( class(price[,index]) == "Date" )
   if( ! is_date ) {
     price[, index := as.Date(index)]
   }
-  if( ! is.null(splits) && ! all(is.na(splits[,split])) ) {
+  if( has_some(splits, "split") ) {
     splits[, index := as.Date(index)]
     price <- merge( price, splits, by = merge_key, all.x = TRUE)
     price[is.na(split), split := 1]
@@ -180,9 +182,9 @@ true_value <- function(price_data, dividend, ..., splits) {
     price[, trueshares := 1]
     price[, truevalue := close]
   }
-  if( ! is.null(dividend) && ! all(is.na(dividend[,dividend])) ) {
+  if( has_some(dividend, "dividend") ) {
     dividend[, index := as.Date(index)]
-    if( ! is.null(splits) && ! all(is.na(splits[,split])) ) {
+    if( has_some(splits, "split") ) {
       dividend <- merge(dividend, splits, by = merge_key, all = TRUE)
       dividend[is.na(dividend), dividend := 0]
       dividend[is.na(split), split := 1]

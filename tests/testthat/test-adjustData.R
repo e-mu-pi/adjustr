@@ -257,6 +257,50 @@ test_that("true_value factors split values into multisymbol data",{
                equals( as.xts(expected) ) )
 })
 
+test_that("true_value works with empty dividend/split results from quantmod",{
+  price_data <- make_data_table("index symbol high close
+                                2015-03-16 SYM 56.6  55.94
+                                2015-03-17 SYM 29.62 28.63
+                                2015-03-18 SYM 29.36 28.24")
+  splits <- make_data_table("index split
+                            2015-03-17 0.5")
+  dividend <- make_data_table("index dividend
+                              2015-03-16  0.013")
+  empty_splits <- NA
+  empty_dividend <- xts( numeric(), order.by = as.Date(character()))
+  
+  expected_with_div <- copy(price_data)
+  expected_with_div[, split := 1]
+  expected_with_div[, trueshares := 1]
+  expected_with_div[, truevalue := 0]
+  expected_with_div[, dividend := c(0.013, 0, 0)]
+  expected_with_div[, truedividend := dividend]
+  expected_with_div[, truevalue := close + cumsum(dividend)]
+  setkey(expected_with_div, symbol, index)
+  
+  expected_with_spl <- data.table::copy(price_data)
+  expected_with_spl[, split := c(1, 0.5, 1)]
+  expected_with_spl[, trueshares := c(1, 2, 2)]
+  expected_with_spl[, truevalue := trueshares * close]
+  expected_with_spl[, dividend := 0]
+  expected_with_spl[, truedividend := 0]
+  setkey(expected_with_spl, symbol, index)
+  
+  expect_that( true_value( price_data, dividend = dividend, splits = empty_splits),
+               equals(expected_with_div) )
+  expect_that( true_value( as.xts(price_data), 
+                           dividend = as.xts(dividend), 
+                           splits = empty_splits ),
+               equals( as.xts(expected_with_div) ) )
+  
+  expect_that( true_value( price_data, dividend = empty_dividend, splits = splits),
+               equals(expected_with_spl) )
+  expect_that( true_value( as.xts(price_data), 
+                           dividend = empty_dividend, 
+                           splits = as.xts(splits) ),
+               equals( as.xts(expected_with_spl) ) )
+})
+
 test_that("true_value assumes dividends are split adjusted (per Yahoo)",{
   price_data <- make_data_table("index symbol high close
                                 2015-03-16 SYM 56.6  55.94
