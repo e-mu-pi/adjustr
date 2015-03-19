@@ -211,18 +211,55 @@ true_value <- function(price_data, dividend, ..., splits) {
   }
   if( ! is.null(dividend) && ! all(is.na(dividend[,dividend])) ) {
     dividend[, index := as.Date(index)]
+    if( ! is.null(splits) && ! all(is.na(splits[,split])) ) {
+      dividend <- merge(dividend, splits, by = merge_key, all = TRUE)
+      dividend[is.na(dividend), dividend := 0]
+      dividend[is.na(split), split := 1]
+      if( has_symbol(price) ) {
+#         splits[, trueshares := 1/cumprod(split), by = symbol]
+#         splits[, retroactive_shares := last(trueshares)/trueshares, by = symbol]
+#         dividend[, trueshares := zoo::na.locf(trueshares), by = symbol]
+#         dividend[is.na(trueshares), trueshares := 1]
+        dividend[, trueshares := 1/cumprod(split), by = symbol]
+        dividend[, retroactive_shares := last(trueshares) / trueshares, by = symbol]
+#         dividend <- dplyr::mutate_each_(price, dplyr::funs( na.locf ), lazyeval::interp( ~ matches(x), x = "trueshares" ) )
+#         dividend[, retroactive_shares := zoo::na.locf( retroactive_shares, na.rm = FALSE), by = symbol]
+        dividend[, truedividend := retroactive_shares * dividend, by = symbol]
+      } else {
+        dividend[, trueshares := 1/cumprod(split)]
+        dividend[, retroactive_shares := last(trueshares) / trueshares]
+        dividend[, truedividend := retroactive_shares * dividend]
+#         splits[, trueshares := 1/cumprod(split)]
+#         splits[, retroactive_shares := last(trueshares)/trueshares]
+#         dividend <- merge(dividend, splits, by = merge_key, all = TRUE)
+#         dividend[is.na(dividend), dividend := 0]
+#         dividend[is.na(split), split := 1]
+#         dividend[, retroactive_shares := zoo::na.locf( retroactive_shares, na.rm = FALSE)]
+#         dividend, truedividend := retroactive_shares * dividend]
+      }
+      dividend[, split := NULL]
+      dividend[, trueshares := NULL] 
+      dividend[, retroactive_shares := NULL] #maybe keep this
+    } else {
+#       dividend[, retroactive_shares := 1]
+      dividend[, truedividend := dividend]
+    }
+#     price <- merge(price, dividend, by = merge_key, all.x = TRUE)
+#     price <- merge(price, select(dividend[dividend,], merge_key, dividend, true_dividend),
+#                    by = merge_key, all.x = TRUE)
     price <- merge(price, dividend, by = merge_key, all.x = TRUE)
     price[is.na(dividend), dividend := 0]
+    price[is.na(truedividend), truedividend := 0]
     if( has_symbol( price ) ) {
 #       final_shares <- price[, last(true_shares), by = symbol ]
-      price[, truedividend := round( dividend * ( last(trueshares) / trueshares ),
-                                     3), by = symbol ] # Yahoo gives split-adjusted dividends
+#       price[, truedividend := round( dividend * ( last(trueshares) / trueshares ),
+#                                      3), by = symbol ] # Yahoo gives split-adjusted dividends
       price[, truevalue := truevalue + cumsum(trueshares * truedividend), by = symbol]
 #       price[, truevalue := truevalue + cumsum(truedividend), by = symbol]
     } else {
 #       final_shares <- price[, last(true_shares)]
-      price[, truedividend := round(dividend * (last(trueshares)/trueshares),
-                                    3)] # Yahoo gives split-adjusted dividends
+#       price[, truedividend := round(dividend * (last(trueshares)/trueshares),
+#                                     3)] # Yahoo gives split-adjusted dividends
 #       price[, truevalue := truevalue + cumsum(truedividend)]
       price[, truevalue := truevalue + cumsum(trueshares * truedividend)]
     }

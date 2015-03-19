@@ -336,7 +336,7 @@ test_that("true_return computed based on starting period with one share at closi
                equals(FALSE))
 })
 
-test_that("true_value ignores dividends/splits outside time period",{
+test_that("true_value ignores dividends/splits outside time period except to adjust dividends",{
   price_data <- make_data_table("index symbol high close
                                 2015-03-16 SYM 56.6  55.94
                                 2015-03-17 SYM 29.62 28.63
@@ -354,8 +354,8 @@ test_that("true_value ignores dividends/splits outside time period",{
   expected[, trueshares := c(1, 2, 2)]
   expected[, truevalue := 0]
   expected[, dividend := c(0.04, 0, 0)]
-  expected[, truedividend := dividend * 2 / trueshares]
-  expected[, truevalue := trueshares * close + cumsum(truedividend)]
+  expected[, truedividend := dividend * 2/7]
+  expected[, truevalue := trueshares * close + cumsum(trueshares * truedividend)]
   setkey(expected, symbol, index)
   
   expect_that( true_value( price_data, dividend = dividend, splits = splits),
