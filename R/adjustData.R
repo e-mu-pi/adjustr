@@ -11,8 +11,10 @@ NULL
 #' a \code{data.table} with a Date field.
 #' 
 #' @param x data.table to convert to xts, must have \emph{POSIXct} in field called "index".
+#' @param ... additional arguments to pass to xts constructor such as attributes, but not
+#' order.by.
 #' @export as.xts.data.table
-as.xts.data.table <- function(x) {
+as.xts.data.table <- function(x, ...) {
   stopifnot( requireNamespace("xts"), !missing(x), data.table::is.data.table(x) )
   columns <- names(x)
   if( ! "index" %in% columns ) stop("index must be a field to convert to xts")
@@ -31,7 +33,7 @@ as.xts.data.table <- function(x) {
     columns <- names(x)
   } 
   xts::xts( x[, columns[! columns %in% c("index")], with = FALSE],
-            order.by = x[, index] )
+            order.by = x[, index], ... )
 }
 
 #' @title as.data.table.xts
@@ -52,15 +54,10 @@ as.data.table.xts <- function(x) {
   stopifnot( requireNamespace("xts"), !missing(x), xts::is.xts(x) )
   dt <- as.data.table( as.data.frame(x),
                  keep.rownames = TRUE)
-#   dt <- dplyr::rename( dt, index = rn)
   setnames(dt, "rn", "index")
-#   if( inherits(dt[,index], "character") ) {
   new_index <- zoo::index(x)
   attr(new_index, "tclass") <- NULL
-    dt[, index := new_index] #Dates seem to get changed to characters; POSIXct worked without
-#     attr(dt[["index"]], "tclass") <- NULL #allow as.xts and as.data.table to invert each other
-#   setattr(dt[,index], "tclass", NULL)
-#   }
+  dt[, index := new_index]
   has_dot <- grepl("\\.", names(dt))
   key_cols <- "index"
   if( any( has_dot ) ) {
@@ -112,10 +109,6 @@ getDTSymbols <- function(x, ...) {
 #' @export
 true_value <- function(price_data, dividend, ..., splits) {
   is_xts <- xts::is.xts(price_data)
-#   if( ! "Close" %in% names(price) ) {
-#     normalize_price <- FALSE
-#     price <- melt( price, )
-#   }
   if( is_xts ) {
     xts_attr <- xts::xtsAttributes(price_data)
     price <- as.data.table(price_data)
@@ -130,15 +123,9 @@ true_value <- function(price_data, dividend, ..., splits) {
     merge_key <- c("index")
   }
   multi_symbol <- has_symbol(price) && length(available_symbols) > 1
-#   if ( multi_symbol ) {
-#     merge_key <- c("index", "symbol")
-#   } else {
-#     merge_key <- c("index")
-#   }
   if( xts::is.xts(dividend) ) {
     dividend <- as.data.table(dividend)
     if( all( names(dividend) %in% c("index", "V1") ) ){
-#       dividend <- dplyr::rename(dividend, dividend = V1)
       setnames(dividend, "V1", "dividend")
     }
   }
@@ -162,20 +149,16 @@ true_value <- function(price_data, dividend, ..., splits) {
     }
     x
   }
-#   dividend <- normalize(dividend)
   normalize(dividend)
   if( xts::is.xts(splits) ) {
     splits <- as.data.table(splits)
     if( "spl" %in% names(splits) ) {
-#       splits <- dplyr::rename(splits, split = spl)
       setnames(splits, "spl", "split")
     }
     if( all( names(splits) %in% c("index", "V1") ) ){
-#       splits <- dplyr::rename(splits, split = V1)
       setnames(splits, "V1", "split")
     }
   }
-#   splits <- normalize(splits)
   normalize(splits)
   index_class <- class(price[,index])
   is_date <- all( class(price[,index]) == "Date" )
@@ -188,22 +171,10 @@ true_value <- function(price_data, dividend, ..., splits) {
     price[is.na(split), split := 1]
     if ( has_symbol(price) ) {
       price[, trueshares := 1 / cumprod(split), by = symbol ]
-#       price[, trueshares := cumprod(trueshares), by = symbol]
     } else {
-#       price[, trueshares := 1 / split]
-#       price[, trueshares := cumprod(trueshares)]
       price[, trueshares := 1 / cumprod(split)]
     }
-#     na.locf <- function(x) zoo::na.locf(x, na.rm = FALSE)
-#     price <- dplyr::mutate_each_(price, dplyr::funs( na.locf ), lazyeval::interp( ~ matches(x), x = "trueshares" ) )
-    
-    # Alternate TrueShare Calculation...a lot of unnecessary multiplication by 1
-#     price[is.na(Split), Split := 1]
-#     price <- data.table::merge.data.table( price, split, by = Date, all = TRUE)
-#     price[, TrueShare := 1 / cumprod(Split) ]
     price[, truevalue := trueshares * close]
-    # Might have split dates with no price data
-#     price <- dplyr::mutate_each_(price, dplyr::funs( zoo::na.locf ), ~ends_with("Close") )
   } else {
     price[, split := 1]
     price[, trueshares := 1]
@@ -216,51 +187,26 @@ true_value <- function(price_data, dividend, ..., splits) {
       dividend[is.na(dividend), dividend := 0]
       dividend[is.na(split), split := 1]
       if( has_symbol(price) ) {
-#         splits[, trueshares := 1/cumprod(split), by = symbol]
-#         splits[, retroactive_shares := last(trueshares)/trueshares, by = symbol]
-#         dividend[, trueshares := zoo::na.locf(trueshares), by = symbol]
-#         dividend[is.na(trueshares), trueshares := 1]
         dividend[, trueshares := 1/cumprod(split), by = symbol]
         dividend[, retroactive_shares := last(trueshares) / trueshares, by = symbol]
-#         dividend <- dplyr::mutate_each_(price, dplyr::funs( na.locf ), lazyeval::interp( ~ matches(x), x = "trueshares" ) )
-#         dividend[, retroactive_shares := zoo::na.locf( retroactive_shares, na.rm = FALSE), by = symbol]
         dividend[, truedividend := retroactive_shares * dividend, by = symbol]
       } else {
         dividend[, trueshares := 1/cumprod(split)]
         dividend[, retroactive_shares := last(trueshares) / trueshares]
         dividend[, truedividend := retroactive_shares * dividend]
-#         splits[, trueshares := 1/cumprod(split)]
-#         splits[, retroactive_shares := last(trueshares)/trueshares]
-#         dividend <- merge(dividend, splits, by = merge_key, all = TRUE)
-#         dividend[is.na(dividend), dividend := 0]
-#         dividend[is.na(split), split := 1]
-#         dividend[, retroactive_shares := zoo::na.locf( retroactive_shares, na.rm = FALSE)]
-#         dividend, truedividend := retroactive_shares * dividend]
       }
       dividend[, split := NULL]
       dividend[, trueshares := NULL] 
       dividend[, retroactive_shares := NULL] #maybe keep this
     } else {
-#       dividend[, retroactive_shares := 1]
       dividend[, truedividend := dividend]
     }
-#     price <- merge(price, dividend, by = merge_key, all.x = TRUE)
-#     price <- merge(price, select(dividend[dividend,], merge_key, dividend, true_dividend),
-#                    by = merge_key, all.x = TRUE)
     price <- merge(price, dividend, by = merge_key, all.x = TRUE)
     price[is.na(dividend), dividend := 0]
     price[is.na(truedividend), truedividend := 0]
     if( has_symbol( price ) ) {
-#       final_shares <- price[, last(true_shares), by = symbol ]
-#       price[, truedividend := round( dividend * ( last(trueshares) / trueshares ),
-#                                      3), by = symbol ] # Yahoo gives split-adjusted dividends
       price[, truevalue := truevalue + cumsum(trueshares * truedividend), by = symbol]
-#       price[, truevalue := truevalue + cumsum(truedividend), by = symbol]
     } else {
-#       final_shares <- price[, last(true_shares)]
-#       price[, truedividend := round(dividend * (last(trueshares)/trueshares),
-#                                     3)] # Yahoo gives split-adjusted dividends
-#       price[, truevalue := truevalue + cumsum(truedividend)]
       price[, truevalue := truevalue + cumsum(trueshares * truedividend)]
     }
   } else {
