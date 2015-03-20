@@ -1,4 +1,4 @@
 library(testthat)
-library(mydatar)
+library(adjustr)
 
-test_check("mydatar")
+test_check("adjustr")

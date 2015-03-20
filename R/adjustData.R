@@ -6,7 +6,7 @@ NULL
 #' @description convert data.table to xts. symbol column
 #' will be joined to nonindex field names.
 #' 
-#' \code{as.xts} is specialized in \code{mydatar}
+#' \code{as.xts} is specialized in \code{adjustr}
 #' to transform an \code{xts} indexed by a date to 
 #' a \code{data.table} with a Date field.
 #' 
@@ -42,7 +42,7 @@ as.xts.data.table <- function(x, ...) {
 #' 
 #' Soon to be in data.table so can be phased out.
 #' 
-#' \code{as.data.table} is specialized in \code{mydatar}
+#' \code{as.data.table} is specialized in \code{adjustr}
 #' to transform a \code{data.table} with a Date column to 
 #' an \code{xts} indexed by date.
 #' 

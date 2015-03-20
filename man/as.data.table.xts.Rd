@@ -15,7 +15,7 @@ preceding "." as a symbol column.
 
 Soon to be in data.table so can be phased out.
 
-\code{as.data.table} is specialized in \code{mydatar}
+\code{as.data.table} is specialized in \code{adjustr}
 to transform a \code{data.table} with a Date column to
 an \code{xts} indexed by date.
 }

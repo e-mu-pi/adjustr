@@ -1,14 +1,14 @@
 .onLoad <- function(libname, pkgname) {
   op <- options()
-  op_mydatar <- list(
-    mydatar.cache_dir = file.path( getwd(), 'mydatar_cache'),
+  op_adjustr <- list(
+    adjustr.cache_dir = file.path( getwd(), 'adjustr_cache'),
     getSymbols.auto.assign = FALSE,
     loadSymbols.auto.assign = FALSE
     )
-  to_set <- !( names(op_mydatar) %in% names(op) )
-  if ( any(to_set) ) options( op_mydatar[to_set])
+  to_set <- !( names(op_adjustr) %in% names(op) )
+  if ( any(to_set) ) options( op_adjustr[to_set])
   
-  cache_dir <- getOption("mydatar.cache_dir")
+  cache_dir <- getOption("adjustr.cache_dir")
   if ( ! file.exists(cache_dir) ) dir.create( cache_dir )
   
   invisible()

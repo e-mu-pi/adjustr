@@ -4,7 +4,7 @@
 \alias{true_value}
 \title{Make additive price adjustments without lookforward bias.}
 \usage{
-true_value(price, dividend, ..., split)
+true_value(price_data, dividend, ..., splits)
 }
 \description{
 Apply dividend and split data to price series without changing
