@@ -274,8 +274,60 @@ test_that("true_value assumes one truedividend paid per trueshare",{
 })
 
 test_that("true_return computed based on starting period with one share at closing price",{
-  expect_that( TRUE,
-               equals(FALSE))
+  # Just use quantmod functions for now. returns computed on truevalue produce truereturns
+  
+  # The important property is that over any period, computing returns using truevalue is
+  # the same as if truevalue were recomputed starting at the beginning of that period
+
+  # NOTE: dividends recorded on date t in yahoo data are paid to you if you are a shareholder
+  # as of the close t-1, i.e., going into the open on t you are a shareholder
+  # (t is the Ex-date, although on yahoo under "Company Events" it will list t-1 as the 
+  # Ex-date. that doesn't agree with other sources.)
+  
+  # In this example, the dividend paid at the first tick is not available to us
+  # unless we already owned the stock on the day before this data set starts.
+  # The dividend on the 3rd tick would be paid to us if we owned the stock at the close
+  # on the 2nd tick.
+  
+  # For the purpose of calculating returns, the first dividend is not collected, the second is
+  # and is used to calculate the return from tick 2 to tick 3. In general, price data
+  # needs corresponding shares owned at the close data to determine true returns if we
+  # only hold at a subset of times.
+  all_prices <- make_data_table("index close split trueshares truevalue dividend truedividend
+                           2015-03-18  50    1     1          52        1        2           
+                           2015-03-19  24    0.5   2          50        0        0           
+                           2015-03-20  27    1     2          59        1.5      1.5
+                           2015-03-21  26    1     2          58        0.5      0.5")
+  make_sure <- dplyr::select(all_prices, index, close)
+  splits <- make_data_table("index split
+                            2015-03-19 0.5")
+  dividend <- make_data_table("index dividend
+                              2015-03-18 1
+                              2015-03-20 1.5
+                              2015-03-21 0.5")
+  check_prices <- true_value(make_sure, dividend, splits = splits)
+  
+  expect_that( data.table::setkey(all_prices, index), 
+               equals(check_prices) )
+  
+#   true_return <- quantmod::dailyReturn( as.xts(all_prices)[,"truevalue"] )
+  true_daily <- true_return(all_prices, 'daily')
+  
+  expected_daily <- xts( data.frame(daily_truereturn = c(0,
+                                                      (48-50)/50, #assume we buy the close, no dividend collected
+                                            (54+3-48)/48, #collect the 1.5 dividend on 2 shares
+                                            (26+0.5-27)/27)),#same as (53-54)/54
+                          order.by = all_prices[,index]) 
+  expect_that( true_daily,
+               equals(expected_daily))
+
+  true_weekly <- true_return(all_prices, 'weekly')
+  expected_weekly <- xts( data.frame(weekly_truereturn = (52+3+1-50)/50 ),
+                          order.by = all_prices[4,index])
+  
+  expect_that( true_weekly,
+               equals(expected_weekly) )
+  #Note that weekly returns are not the product or sum of daily returns
 })
 
 test_that("compounded_value computed as if dividends are reinvested in fractional shares",{

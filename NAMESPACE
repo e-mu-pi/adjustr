@@ -3,5 +3,6 @@
 S3method(as.data.table,xts)
 export(as.xts.data.table)
 export(getDTSymbols)
+export(true_return)
 export(true_value)
 import(data.table)

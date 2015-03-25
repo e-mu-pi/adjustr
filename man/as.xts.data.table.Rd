@@ -4,7 +4,7 @@
 \alias{as.xts.data.table}
 \title{as.xts.data.table}
 \usage{
-as.xts.data.table(x, ...)
+\method{as.xts}{data.table}(x, ...)
 }
 \arguments{
 \item{x}{data.table to convert to xts, must have \emph{POSIXct} in field called "index".}

@@ -154,3 +154,104 @@ true_value <- function(price_data, dividend, ..., splits) {
   }
   price
 }
+
+#' Compute period returns as value change plus dividends.
+#' 
+#' @param true_value_data A \code{data.table} including columns \code{index, close, trueshares, truedividends}. 
+#' The \code{index} column must be a valid type for \code{xts} indexing. Multi-symbol data
+#' is not supported.
+#' @param period A string indicating a granularity. See quantmod::periodReturn.
+#' 
+#' @return An \code{xts} object ordered by the \code{index} column granulated to period. The
+#' returns are calculated as close to close values multiplied by trueshares to account for
+#' splits and adding in dividends over the period. Note that a dividend on date t in Yahoo 
+#' data is only paid to those holding at the close on date t-1. Therefore, there a dividend
+#' on date t for which t is also the period start will be recorded in the period ending on date
+#' t, not the next period starting on t. In particular, daily returns include a dividend on
+#' date t in the return from t-1 to t, recorded as the return on date t.
+#' 
+#' Note that daily true returns for one week do not simply convert to weekly returns as prod(1+r).
+#' Each day the basis for return is the close, but the return comes from the following close
+#' plus dividends. Those dividends are not included in the basis for the following day.
+#' 
+#' @export
+true_return <- function(true_value_data, period = 'monthly') {
+  period_opts <- list(daily = "days", weekly = "weeks", monthly = "months", 
+                  quarterly = "quarters", yearly = "years", annually = "years")
+  end_points <- xts::endpoints(as.xts(true_value_data[,index]), on = period_opts[[period]])
+#   end_points <- end_points[-1] # first is always zero, no?
+  
+#   dividend_paid_points <- end_points-1
+  n_points <- length(end_points)
+  n <- nrow(true_value_data)
+# 
+#   if( length(end_points) == 1 ) {
+#     
+#   }
+
+  true_value_data[, period_index := 0]
+  true_value_data[end_points, period_index := 1]
+  true_value_data[, period_index := cumsum(period_index)]
+
+  # Dividends are paid to the holder on the previous day in Yahoo data.
+  # Therefore, they need to be offset by 1 as to which period they are
+  # paid in. A dividend on the initial day should not be included because
+  # it would be paid in the previous period. If the initial period is partial,
+  # I suppose it should be included, but currently it's not. The first period
+  # isn't perfect anyway because we don't have the true starting price.
+  true_value_data[, dividend_paid_index := c(0, period_index[-n])]
+
+  true_value_data[, trueclose := close * trueshares]
+  true_value_data[, inperiod_dividend := truedividend]
+  true_value_data[1, inperiod_dividend := 0]
+  true_value_data[, dividends_paid := cumsum(inperiod_dividend * trueshares),
+                  by = dividend_paid_index]
+  true_value_data[, trueclose_plus_period_dividends := trueclose + dividends_paid]
+#   setkey(true_value_data, "period_index")
+#   trueclose_plus_div <- div[true_value_data, last(dividends_paid) + last(trueclose),
+#                                         by = period_index]
+                        
+  end_points[1] <- 1
+  truereturn <- quantmod::Delt( true_value_data[end_points[-n_points],trueclose], 
+                                true_value_data[end_points[-1],trueclose_plus_period_dividends])
+  true_value_data[, period_index := NULL]
+  true_value_data[, dividend_paid_index := NULL]
+  true_value_data[, trueclose := NULL]
+  true_value_data[, inperiod_dividend := NULL]
+  true_value_data[, trueclose_plus_period_dividends := NULL]
+
+  ret <- xts::xts( truereturn, order.by = true_value_data[end_points[-1], index])
+  colnames(ret) <- paste(period,"truereturn", sep = "_")
+  ret
+# quantmod::periodReturn: 
+#   xx <- try.xts(x)
+#   if (inherits(x, "ts")) {
+#     x <- na.omit(try.xts(x))
+#     xtsAttributes(x) <- CLASS(x) <- NULL
+#     xx <- x
+#     TS <- TRUE
+#   }
+#   else TS <- FALSE
+#   if (has.Op(xx) & has.Cl(xx)) {
+#     getFirst <- function(X) Op(X)
+#     getLast <- function(X) Cl(X)
+#   }
+#   else getFirst <- getLast <- function(X) X[, 1]
+#   on.opts <- list(daily = "days", weekly = "weeks", monthly = "months", 
+#                   quarterly = "quarters", yearly = "years", annually = "years")
+#   ep <- endpoints(xx, on = on.opts[[period]])
+#   ret <- Delt_(Cl(to_period(xx, period = on.opts[[period]], 
+#                             ...)), type = type)
+#   if (leading) {
+#     firstval <- as.numeric(Delt_(getFirst(xx[1]), getLast(xx[ep[2]]), 
+#                                  type = type))
+#     ret[1, ] <- firstval
+#   }
+#   colnames(ret) <- paste(period, "returns", sep = ".")
+#   if (TS) 
+#     xx <- 1
+#   tmp.ret <- reclass(ret, xx[ep[-1]])
+#   if (is.null(subset)) 
+#     subset <- "/"
+#   reclass(as.xts(tmp.ret)[subset])
+}
