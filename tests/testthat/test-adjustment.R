@@ -396,7 +396,7 @@ test_that("true_return.data.table computed based on matching start/end index",{
   start <- as.POSIXct(all_prices[c(1,4),index])
   end <- as.POSIXct(all_prices[c(2,5),index])
   
-  expected_sparser <- data.table( index = all_prices[-1,index],
+  expected_sparser <- data.table( index = all_prices[c(2,5),index],
                                 rawreturn = c((52+1-50)/50, 
                                               (26+0.5-27)/27 ) ) 
   expect_that( true_return(all_prices, c(1,4), c(2,5)),
@@ -413,7 +413,7 @@ test_that("true_return.data.table computed based on matching start/end index",{
   
   expected_overlap <- data.table( index = all_prices[c(3,4,5),index],
                                   rawreturn = c((48+1-50)/50, 
-                                                ( 1+2*(27+1.5) - 52) / 52,
+                                                ( 2*(27+1.5) - 52) / 52,
                                                 (26+1.5+0.5-24)/24 ) ) 
   expect_that( true_return(all_prices, c(1,2,3), c(3,4,5)),
                equals(expected_overlap) )

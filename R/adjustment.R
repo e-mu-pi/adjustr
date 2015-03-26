@@ -222,9 +222,11 @@ true_return.xts <- function(true_value_xts, period = 'monthly') {
                       quarterly = "quarters", yearly = "years", annually = "years")
   end_points <- xts::endpoints( index(true_value_xts), 
                                 on = period_opts[[period]])
+  end_points <- end_points[-1] #drop initial 0
+  if( ! 1 %in% end_points ) end_points <- c(1, end_points)
   n <- length(end_points)
   raw_ret_dt <- true_return( as.data.table(true_value_xts), 
-                       start = c(1, end_points[-c(1,n)] ),
+                       start = end_points[-n],
                        end = end_points[-1] )
   # dt version gives intermediate returns between start and end
   # to match quantmod, only return the values at endpoints
@@ -259,24 +261,28 @@ true_return.data.table <- function(true_value_data, start, end) {
 #     end_index <- end
 #   }
   if( xts::timeBased(end) ) {
-    end_index <- true_value_data[, as.IDate(index) %in% as.IDate(end) ]
+    end_index <- true_value_data[, which(as.IDate(index) %in% as.IDate(end)) ]
   } else {
     end_index <- end
   }
   if( xts::timeBased(start) ) {
-    start_index <- true_value_data[, as.IDate(index) %in% as.IDate(start) ]
+    start_index <- true_value_data[, which(as.IDate(index) %in% as.IDate(start)) ]
   } else {
     start_index <- start
   }
+  num_starts <- length(start_index)
 #   true_value_data[, init_index := 0]
 #   true_value_data[start_index, init_index := 1]
 #   true_value_data[, init_index := cumsum(init_index)]
 
   true_value_data[, period_index := 0]
   true_value_data[end_index, period_index := 1]
-  true_value_data[, period_index := cumsum( c(0,period_index[-n]) )]
-  true_value_data[1, period_index := -1]
+  true_value_data[start_index, period_index := period_index + 1]
+  true_value_data[, period_index := c(0, cumsum( period_index)[-n]) ]
+#   true_value_data[1, period_index := -1]
+  true_value_data[, on_period := period_index %in% period_index[end_index]]
 
+  
 #   true_value_data[, init_index := 0]
 #   true_value_data[start_index, init_index := 1]
 #   true_value_data[, init_index := cumsum(init_index)]
@@ -299,16 +305,35 @@ true_return.data.table <- function(true_value_data, start, end) {
 #   raw_ret <- with_previous_trueclose[, true_return(trueshares, truedividend, close, initial_trueclose), 
 #                              by = period_index]
   initial_trueclose <- true_value_data[start_index, close * trueshares]
-  raw_ret <- true_value_data[period_index > -1, true_return(trueshares, truedividend, close, initial_trueclose[.GRP]), 
+  overlap <- any( start_index[-1] < end_index[-n_intervals])
+  if( overlap ) {
+    overlapped_dividends <- numeric(length(initial_trueclose))  
+    for( idx in seq_along(start_index)) {
+      overlapped_dividends[idx] <- true_value_data[(start_index[idx]+1):end_index[idx],
+                                                   sum(truedividend * trueshares / last(trueshares) )]
+    }
+    raw_ret <- true_value_data[(on_period),  list(rawreturn = true_return(last(trueshares), 
+                                                      overlapped_dividends[.GRP], 
+                                                      last(close), 
+                                                      initial_trueclose[.GRP]) ), 
+                               by = period_index]
+  } else {
+    raw_ret <- true_value_data[(on_period), 
+                               list(rawreturn = true_return(trueshares, 
+                                                            truedividend, 
+                                                            close, 
+                                                            initial_trueclose[.GRP])), 
                              by = period_index]
+  }
   #   if( overlap ) {
   #     data.table( index = true_value_data[end_index, index],
   #                 rawreturn = raw_ret[-1,V1])
   #   } else {
-  ret <- data.table( index = true_value_data[period_index > -1, index],
-              rawreturn = raw_ret[,V1])
+  ret <- data.table( index = true_value_data[(on_period), index],
+              rawreturn = raw_ret[,rawreturn])
   #   }
   true_value_data[, period_index := NULL]
+  true_value_data[, on_period := NULL]
   ret
   # Dividends are paid to the holder on the previous day in Yahoo data.
   # Therefore, they need to be offset by 1 as to which period they are
