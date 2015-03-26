@@ -18,8 +18,8 @@ getDTSymbols <- function(x, ...) {
 #' past data. Changes are applied additively, perhaps multiplicative 
 #' will be added in the future. A dividend paid at time t will increase
 #' the value at time t and all future times. A split at time t will 
-#' apply a factor at time t and all future times. The TrueValue and
-#' TrueShares will be added.
+#' apply a factor at time t and all future times. The RawValue and
+#' RawShares will be added.
 #' 
 #' Because one could accidentally pass in the dividend object as the split and
 #' vice versa, split must be assigned by name.
@@ -31,7 +31,7 @@ getDTSymbols <- function(x, ...) {
 #' 
 #' TODO: Need to make sure it works when there is a split or dividend on a date with no price.
 #' @export
-true_value <- function(price_data, dividend, ..., splits) {
+raw_value <- function(price_data, dividend, ..., splits) {
   is_xts <- xts::is.xts(price_data)
   if( is_xts ) {
     xts_attr <- xts::xtsAttributes(price_data)
@@ -96,15 +96,15 @@ true_value <- function(price_data, dividend, ..., splits) {
     price <- merge( price, splits, by = merge_key, all.x = TRUE)
     price[is.na(split), split := 1]
     if ( has_symbol(price) ) {
-      price[, trueshares := 1 / cumprod(split), by = symbol ]
+      price[, rawshares := 1 / cumprod(split), by = symbol ]
     } else {
-      price[, trueshares := 1 / cumprod(split)]
+      price[, rawshares := 1 / cumprod(split)]
     }
-    price[, truevalue := trueshares * close]
+    price[, rawvalue := rawshares * close]
   } else {
     price[, split := 1]
-    price[, trueshares := 1]
-    price[, truevalue := close]
+    price[, rawshares := 1]
+    price[, rawvalue := close]
   }
   if( has_some(dividend, "dividend") ) {
     dividend[, index := as.Date(index)]
@@ -113,31 +113,31 @@ true_value <- function(price_data, dividend, ..., splits) {
       dividend[is.na(dividend), dividend := 0]
       dividend[is.na(split), split := 1]
       if( has_symbol(price) ) {
-        dividend[, trueshares := 1/cumprod(split), by = symbol]
-        dividend[, retroactive_shares := last(trueshares) / trueshares, by = symbol]
-        dividend[, truedividend := retroactive_shares * dividend, by = symbol]
+        dividend[, rawshares := 1/cumprod(split), by = symbol]
+        dividend[, retroactive_shares := last(rawshares) / rawshares, by = symbol]
+        dividend[, rawdividend := retroactive_shares * dividend, by = symbol]
       } else {
-        dividend[, trueshares := 1/cumprod(split)]
-        dividend[, retroactive_shares := last(trueshares) / trueshares]
-        dividend[, truedividend := retroactive_shares * dividend]
+        dividend[, rawshares := 1/cumprod(split)]
+        dividend[, retroactive_shares := last(rawshares) / rawshares]
+        dividend[, rawdividend := retroactive_shares * dividend]
       }
       dividend[, split := NULL]
-      dividend[, trueshares := NULL] 
+      dividend[, rawshares := NULL] 
       dividend[, retroactive_shares := NULL] #maybe keep this
     } else {
-      dividend[, truedividend := dividend]
+      dividend[, rawdividend := dividend]
     }
     price <- merge(price, dividend, by = merge_key, all.x = TRUE)
     price[is.na(dividend), dividend := 0]
-    price[is.na(truedividend), truedividend := 0]
+    price[is.na(rawdividend), rawdividend := 0]
     if( has_symbol( price ) ) {
-      price[, truevalue := truevalue + cumsum(trueshares * truedividend), by = symbol]
+      price[, rawvalue := rawvalue + cumsum(rawshares * rawdividend), by = symbol]
     } else {
-      price[, truevalue := truevalue + cumsum(trueshares * truedividend)]
+      price[, rawvalue := rawvalue + cumsum(rawshares * rawdividend)]
     }
   } else {
     price[, dividend := 0]
-    price[, truedividend := 0]
+    price[, rawdividend := 0]
   }
   if( ! is_date ) {
     if ( all( index_class == c("POSIXct", "POSIXt") ) ) {
@@ -157,27 +157,27 @@ true_value <- function(price_data, dividend, ..., splits) {
 
 #' Compute period returns as value change plus dividends.
 #' 
-#' @param true_value_data A \code{data.table} including columns \code{index, close, trueshares, truedividends}. 
+#' @param raw_value_data A \code{data.table} including columns \code{index, close, rawshares, rawdividends}. 
 #' The \code{index} column must be a valid type for \code{xts} indexing. Multi-symbol data
 #' is not supported.
 #' @param period A string indicating a granularity. See quantmod::periodReturn.
 #' 
 #' @return An \code{xts} object ordered by the \code{index} column granulated to period. The
-#' returns are calculated as close to close values multiplied by trueshares to account for
+#' returns are calculated as close to close values multiplied by rawshares to account for
 #' splits and adding in dividends over the period. Note that a dividend on date t in Yahoo 
 #' data is only paid to those holding at the close on date t-1. Therefore, there a dividend
 #' on date t for which t is also the period start will be recorded in the period ending on date
 #' t, not the next period starting on t. In particular, daily returns include a dividend on
 #' date t in the return from t-1 to t, recorded as the return on date t.
 #' 
-#' Note that daily true returns for one week do not simply convert to weekly returns as prod(1+r).
+#' Note that daily raw returns for one week do not simply convert to weekly returns as prod(1+r).
 #' Each day the basis for return is the close, but the return comes from the following close
 #' plus dividends. Those dividends are not included in the basis for the following day.
 #' 
 #' @export
-true_return <- function(x, ...) UseMethod("true_return")
+raw_return <- function(x, ...) UseMethod("raw_return")
 
-#' Compute true return from split adjusted shares, dividends, and closing prices.
+#' Compute raw return from split adjusted shares, dividends, and closing prices.
 #' 
 #' Computes the return of buying the given number of shares at the first closing price
 #' and exiting at any intermediate closing price including splits and dividends. The
@@ -193,9 +193,9 @@ true_return <- function(x, ...) UseMethod("true_return")
 #'   have been announced historically. The values returned from Yahoo are split adjusted. 
 #'   For example, a dividend of 0.2 that occured before a 2:1 split would be reported as
 #'   0.1 by Yahoo (assuming no subsequent splits). This function expects the 0.2. Available
-#'   as \code{truedividend} as returned by \code{true_value}.
+#'   as \code{rawdividend} as returned by \code{raw_value}.
 #' @param close The historical closing prices with no adjustments.
-#' @param initial_trueclose Optional starting value to measure returns against. Default is
+#' @param initial_rawclose Optional starting value to measure returns against. Default is
 #' NULL, i.e., just use the first ticks from the other data vectors. If used, the first 
 #' dividend will be included.
 #' 
@@ -203,137 +203,97 @@ true_return <- function(x, ...) UseMethod("true_return")
 #' the first close including dividends.
 #' 
 #' @export
-true_return.default <- function(split_adjusted_shares, split_unadjusted_dividends, close, 
-                                initial_trueclose = NULL) {
-  trueclose <- split_adjusted_shares * close
-  if( is.null(initial_trueclose) ) {
-    initial_trueclose <- trueclose[1]
+raw_return.default <- function(split_adjusted_shares, split_unadjusted_dividends, close, 
+                                initial_rawclose = NULL) {
+  rawclose <- split_adjusted_shares * close
+  if( is.null(initial_rawclose) ) {
+    initial_rawclose <- rawclose[1]
     paid_dividends <- function(x) c(0, x[-1])
   } else {
     paid_dividends <- function(x) x
   }
-  (trueclose + cumsum(split_adjusted_shares * paid_dividends(split_unadjusted_dividends) ) - 
-     initial_trueclose)/ initial_trueclose
+  (rawclose + cumsum(split_adjusted_shares * paid_dividends(split_unadjusted_dividends) ) - 
+     initial_rawclose)/ initial_rawclose
 }
 
 #' @export
-true_return.xts <- function(true_value_xts, period = 'monthly') {
+raw_return.xts <- function(raw_value_xts, period = 'monthly') {
   period_opts <- list(daily = "days", weekly = "weeks", monthly = "months", 
                       quarterly = "quarters", yearly = "years", annually = "years")
-  end_points <- xts::endpoints( index(true_value_xts), 
+  end_points <- xts::endpoints( index(raw_value_xts), 
                                 on = period_opts[[period]])
   end_points <- end_points[-1] #drop initial 0
   if( ! 1 %in% end_points ) end_points <- c(1, end_points)
   n <- length(end_points)
-  raw_ret_dt <- true_return( as.data.table(true_value_xts), 
+  raw_ret_dt <- raw_return( as.data.table(raw_value_xts), 
                        start = end_points[-n],
                        end = end_points[-1] )
-  # dt version gives intermediate returns between start and end
-  # to match quantmod, only return the values at endpoints
-  # end_points[-1]: remove initial starting point
-  # -1: indexing is off by 1 because true_return will not have a return on the
-  # first tick
   if ( period == 'daily' ) {
-    initial_zero_to_match_quantmod <- data.table(index = index(true_value_xts[1,]),
+    initial_zero_to_match_quantmod <- data.table(index = index(raw_value_xts[1,]),
                                                  rawreturn = 0)
     raw_ret <- as.xts( rbind( initial_zero_to_match_quantmod,
                               raw_ret_dt ) )
   } else {
+    # dt version gives intermediate returns between start and end
+    # to match quantmod, only return the values at endpoints
+    # end_points[-1]: remove initial starting point
+    # -1: indexing is off by 1 because raw_return will not have a return on the
+    # first tick
     raw_ret <- as.xts( raw_ret_dt[end_points[-1]-1,] ) 
   }
-  colnames(raw_ret) <- paste(period, "truereturn", sep = "_")
+  colnames(raw_ret) <- paste(period, "rawreturn", sep = "_")
   raw_ret
 } 
 
 #' @export
-true_return.data.table <- function(true_value_data, start, end) {
+raw_return.data.table <- function(raw_value_data, start, end) {
 
   n_intervals <- length(end)
-  n <- nrow(true_value_data)
+  n <- nrow(raw_value_data)
 
-#   if( quantmod::timeBased(end) ) {
-#     end_index <- true_value_data[, as.POSIXct(index) == end]
-#   } else if( is.Date(end) ) {
-#     end_index <- true_value_data[, as.Date(index) == end]
-#   } else if( is.IDate(end) ) {
-#     end_index <- true_value_data[, as.IDate(index) == end]
-#   } else {
-#     end_index <- end
-#   }
   if( xts::timeBased(end) ) {
-    end_index <- true_value_data[, which(as.IDate(index) %in% as.IDate(end)) ]
+    end_index <- raw_value_data[, which(as.IDate(index) %in% as.IDate(end)) ]
   } else {
     end_index <- end
   }
   if( xts::timeBased(start) ) {
-    start_index <- true_value_data[, which(as.IDate(index) %in% as.IDate(start)) ]
+    start_index <- raw_value_data[, which(as.IDate(index) %in% as.IDate(start)) ]
   } else {
     start_index <- start
   }
   num_starts <- length(start_index)
-#   true_value_data[, init_index := 0]
-#   true_value_data[start_index, init_index := 1]
-#   true_value_data[, init_index := cumsum(init_index)]
 
-  true_value_data[, period_index := 0]
-  true_value_data[end_index, period_index := 1]
-  true_value_data[start_index, period_index := period_index + 1]
-  true_value_data[, period_index := c(0, cumsum( period_index)[-n]) ]
-#   true_value_data[1, period_index := -1]
-  true_value_data[, on_period := period_index %in% period_index[end_index]]
+  raw_value_data[, period_index := 0]
+  raw_value_data[end_index, period_index := 1]
+  raw_value_data[start_index, period_index := period_index + 1]
+  raw_value_data[, period_index := c(0, cumsum( period_index)[-n]) ]
+  raw_value_data[, on_period := period_index %in% period_index[end_index]]
 
-  
-#   true_value_data[, init_index := 0]
-#   true_value_data[start_index, init_index := 1]
-#   true_value_data[, init_index := cumsum(init_index)]
-#   if ( true_value_data[-1, any(init_index < period_index)])
-
-#   initial_trueclose <- true_value_data[1, trueshares*close]
-#   previous_period_trueclose <- true_value_data[,last(trueshares * close), by = period_index]
-#   previous_period_trueclose[, V1 := c(initial_trueclose, V1[-(n_intervals+1)])]
-#   initial_trueclose <- dplyr::select(
-#     dplyr::mutate( true_value_data[start_index,], 
-#                    trueclose = close * trueshares), 
-#     period_index, trueclose)
-#   previous_period_trueclose <- c( true_value_data[period_index==0, first(trueshares * close)],
-#                                   previous_period_trueclose[-(n_intervals+1),V1])
-
-# initial_tc <- data.table( period_index = true_value_data[, unique(init_index)],
-#                           initial_trueclose = true_value_data[start_index, close * trueshares])
-#   setkey(true_value_data, period_index)
-#   with_previous_trueclose <- true_value_data[initial_tc,]
-#   raw_ret <- with_previous_trueclose[, true_return(trueshares, truedividend, close, initial_trueclose), 
-#                              by = period_index]
-  initial_trueclose <- true_value_data[start_index, close * trueshares]
+  initial_rawclose <- raw_value_data[start_index, close * rawshares]
   overlap <- any( start_index[-1] < end_index[-n_intervals])
   if( overlap ) {
-    overlapped_dividends <- numeric(length(initial_trueclose))  
+    overlapped_dividends <- numeric(length(initial_rawclose))  
     for( idx in seq_along(start_index)) {
-      overlapped_dividends[idx] <- true_value_data[(start_index[idx]+1):end_index[idx],
-                                                   sum(truedividend * trueshares / last(trueshares) )]
+      overlapped_dividends[idx] <- raw_value_data[(start_index[idx]+1):end_index[idx],
+                                                   sum(rawdividend * rawshares / last(rawshares) )]
     }
-    raw_ret <- true_value_data[(on_period),  list(rawreturn = true_return(last(trueshares), 
+    raw_ret <- raw_value_data[(on_period),  list(rawreturn = raw_return(last(rawshares), 
                                                       overlapped_dividends[.GRP], 
                                                       last(close), 
-                                                      initial_trueclose[.GRP]) ), 
+                                                      initial_rawclose[.GRP]) ), 
                                by = period_index]
   } else {
-    raw_ret <- true_value_data[(on_period), 
-                               list(rawreturn = true_return(trueshares, 
-                                                            truedividend, 
+    raw_ret <- raw_value_data[(on_period), 
+                               list(rawreturn = raw_return(rawshares, 
+                                                            rawdividend, 
                                                             close, 
-                                                            initial_trueclose[.GRP])), 
+                                                            initial_rawclose[.GRP])), 
                              by = period_index]
   }
-  #   if( overlap ) {
-  #     data.table( index = true_value_data[end_index, index],
-  #                 rawreturn = raw_ret[-1,V1])
-  #   } else {
-  ret <- data.table( index = true_value_data[(on_period), index],
+  ret <- data.table( index = raw_value_data[(on_period), index],
               rawreturn = raw_ret[,rawreturn])
-  #   }
-  true_value_data[, period_index := NULL]
-  true_value_data[, on_period := NULL]
+  raw_value_data[, period_index := NULL]
+  raw_value_data[, on_period := NULL]
   ret
   # Dividends are paid to the holder on the previous day in Yahoo data.
   # Therefore, they need to be offset by 1 as to which period they are
@@ -341,27 +301,6 @@ true_return.data.table <- function(true_value_data, start, end) {
   # it would be paid in the previous period. If the initial period is partial,
   # I suppose it should be included, but currently it's not. The first period
   # isn't perfect anyway because we don't have the true starting price.
-#   true_value_data[, dividend_paid_index := c(0, period_index[-n])]
-# 
-#   true_value_data[, trueclose := close * trueshares]
-#   true_value_data[, inperiod_dividend := truedividend]
-#   true_value_data[1, inperiod_dividend := 0]
-#   true_value_data[, dividends_paid := cumsum(inperiod_dividend * trueshares),
-#                   by = dividend_paid_index]
-#   true_value_data[, trueclose_plus_period_dividends := trueclose + dividends_paid]
-
-#   end_points[1] <- 1
-#   truereturn <- quantmod::Delt( true_value_data[end_points[-n_points],trueclose], 
-#                                 true_value_data[end_points[-1],trueclose_plus_period_dividends])
-#   true_value_data[, period_index := NULL]
-#   true_value_data[, dividend_paid_index := NULL]
-#   true_value_data[, trueclose := NULL]
-#   true_value_data[, inperiod_dividend := NULL]
-#   true_value_data[, trueclose_plus_period_dividends := NULL]
-
-#   ret <- xts::xts( truereturn, order.by = true_value_data[end_points[-1], index])
-#   colnames(ret) <- paste(period,"truereturn", sep = "_")
-
 
 
 }
