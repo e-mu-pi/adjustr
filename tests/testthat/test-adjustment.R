@@ -273,13 +273,9 @@ test_that("true_value assumes one truedividend paid per trueshare",{
                equals( as.xts(expected[1:3,]) ) )
 })
 
-test_that("true_return computed based on starting period with one share at closing price",{
-  # Just use quantmod functions for now. returns computed on truevalue produce truereturns
-  
-  # The important property is that over any period, computing returns using truevalue is
-  # the same as if truevalue were recomputed starting at the beginning of that period
-
-  # NOTE: dividends recorded on date t in yahoo data are paid to you if you are a shareholder
+test_that("true_return.default computes trueclose to trueclose plus properly adjusted dividends",{
+  # NOTE: First dividend is not included.
+  # Dividends recorded on date t in yahoo data are paid to you if you are a shareholder
   # as of the close t-1, i.e., going into the open on t you are a shareholder
   # (t is the Ex-date, although on yahoo under "Company Events" it will list t-1 as the 
   # Ex-date. that doesn't agree with other sources.)
@@ -294,43 +290,169 @@ test_that("true_return computed based on starting period with one share at closi
   # needs corresponding shares owned at the close data to determine true returns if we
   # only hold at a subset of times.
   all_prices <- make_data_table("index close split trueshares truevalue dividend truedividend
-                           2015-03-18  50    1     1          52        1        2           
-                           2015-03-19  24    0.5   2          50        0        0           
-                           2015-03-20  27    1     2          59        1.5      1.5
-                           2015-03-21  26    1     2          58        0.5      0.5")
+                                2015-03-17  50    1     1          52        1        2           
+                                2015-03-18  52    1     1          55        0.5      1
+                                2015-03-19  24    0.5   2          51        0        0           
+                                2015-03-20  27    1     2          60        1.5      1.5
+                                2015-03-21  26    1     2          59        0.5      0.5")
   make_sure <- dplyr::select(all_prices, index, close)
   splits <- make_data_table("index split
                             2015-03-19 0.5")
   dividend <- make_data_table("index dividend
-                              2015-03-18 1
+                              2015-03-17 1
+                              2015-03-18 0.5
                               2015-03-20 1.5
                               2015-03-21 0.5")
-  check_prices <- true_value(make_sure, dividend, splits = splits)
-  
+  true_prices <- true_value(make_sure, dividend, splits = splits)  
   expect_that( data.table::setkey(all_prices, index), 
-               equals(check_prices) )
+               equals(true_prices) )
   
-#   true_return <- quantmod::dailyReturn( as.xts(all_prices)[,"truevalue"] )
+  whole_period <- true_return( true_prices[, trueshares], 
+                               true_prices[, truedividend], 
+                               true_prices[, close]) 
+  expect_that( whole_period[1],
+               equals(0) )
+  expect_that( whole_period[2],
+               equals( (52 + 1 - 50) / 50 ) )
+  expect_that( whole_period[3],
+               equals( (2*(24+0.5)-50) / 50 ) )
+  expect_that( whole_period[4],
+               equals( (2*(27+0.5+1.5)-50) / 50 ) )
+  expect_that( whole_period[5],
+               equals( (2*(26+0.5+1.5+0.5)-50)/50 ) )
+
+  alternate_version <- true_return( true_prices[2:5, trueshares],
+                                    true_prices[2:5, truedividend],
+                                    true_prices[2:5, close],
+                                    true_prices[1, close * trueshares])
+  expect_that( alternate_version,
+               equals(whole_period[-1]) )
+  partial_period <- true_return( true_prices[2:5, trueshares], 
+                                                 true_prices[2:5, truedividend], 
+                                                 true_prices[2:5, close]) 
+  expect_that( partial_period[1],
+               equals(0) )
+  expect_that( partial_period[2],
+               equals( (2*24-52) / 52 ) )
+  expect_that( partial_period[3],
+               equals( (2*(27+1.5)-52) / 52 ) )
+  expect_that( partial_period[4],
+               equals( (2*(26+1.5+0.5)-52)/52 ) )
+  
+  post_split <- true_return( true_prices[3:5, trueshares], 
+                                               true_prices[3:5, truedividend], 
+                                               true_prices[3:5, close]) 
+  post_split_resized <- true_return( c(1,1,1),
+                                     true_prices[3:5, truedividend],
+                                     true_prices[3:5, close])
+  expect_that( post_split,
+               equals(post_split_resized) )
+  
+  
+})
+
+test_that("true_return.data.table computed based on matching start/end index",{
+  all_prices <- make_data_table("index close split trueshares truevalue dividend truedividend
+                                2015-03-17  50    1     1          52        1        2           
+                                2015-03-18  52    1     1          55        0.5      1
+                                2015-03-19  24    0.5   2          50        0        0           
+                                2015-03-20  27    1     2          59        1.5      1.5
+                                2015-03-21  26    1     2          58        0.5      0.5")
+  
+  start <- as.POSIXct(all_prices[-5,index])
+  end <- as.POSIXct(all_prices[-1,index])
+  
+  expected_every <- data.table( index = all_prices[-1,index],
+                                     rawreturn = c((52+1-50)/50, 
+                                                     (48-52)/52, 
+                                                     (27+1.5-24)/24,
+                                                     (26+0.5-27)/27 ) ) 
+  expect_that( true_return(all_prices, 1:4, 2:5),
+               equals(expected_every) )
+  expect_that( true_return(all_prices, start, end),
+               equals(expected_every) )
+  expect_that( true_return(all_prices, as.Date(start), as.Date(end) ),
+               equals(expected_every) )
+  expect_that( true_return(all_prices, as.IDate(start), as.IDate(end) ),
+               equals(expected_every) )
+  
+  start <- as.POSIXct(all_prices[c(1,3),index])
+  end <- as.POSIXct(all_prices[c(3,5),index])
+  
+  expected_sparse <- data.table( index = all_prices[-1,index],
+                                  rawreturn = c((52+1-50)/50, 
+                                                (48+1-50)/50, 
+                                                (27+1.5-24)/24,
+                                                (26+1.5+0.5-24)/24 ) ) 
+  expect_that( true_return(all_prices, c(1,3), c(3,5)),
+               equals(expected_sparse) )
+  expect_that( true_return(all_prices, start, end),
+               equals(expected_sparse) )
+  expect_that( true_return(all_prices, as.Date(start), as.Date(end) ),
+               equals(expected_sparse) )
+  expect_that( true_return(all_prices, as.IDate(start), as.IDate(end) ),
+               equals(expected_sparse) )
+  
+  start <- as.POSIXct(all_prices[c(1,4),index])
+  end <- as.POSIXct(all_prices[c(2,5),index])
+  
+  expected_sparser <- data.table( index = all_prices[-1,index],
+                                rawreturn = c((52+1-50)/50, 
+                                              (26+0.5-27)/27 ) ) 
+  expect_that( true_return(all_prices, c(1,4), c(2,5)),
+               equals(expected_sparser) )
+  expect_that( true_return(all_prices, start, end),
+               equals(expected_sparser) )
+  expect_that( true_return(all_prices, as.Date(start), as.Date(end) ),
+               equals(expected_sparser) )
+  expect_that( true_return(all_prices, as.IDate(start), as.IDate(end) ),
+               equals(expected_sparser) )
+
+  start <- as.POSIXct(all_prices[c(1,2,3),index])
+  end <- as.POSIXct(all_prices[c(3,4,5),index])
+  
+  expected_overlap <- data.table( index = all_prices[c(3,4,5),index],
+                                  rawreturn = c((48+1-50)/50, 
+                                                ( 1+2*(27+1.5) - 52) / 52,
+                                                (26+1.5+0.5-24)/24 ) ) 
+  expect_that( true_return(all_prices, c(1,2,3), c(3,4,5)),
+               equals(expected_overlap) )
+  expect_that( true_return(all_prices, start, end),
+               equals(expected_overlap) )
+  expect_that( true_return(all_prices, as.Date(start), as.Date(end) ),
+               equals(expected_overlap) )
+  expect_that( true_return(all_prices, as.IDate(start), as.IDate(end) ),
+               equals(expected_overlap) )
+})
+
+test_that("true_return.xts uses similar options as quantmod::periodReturn",{
+  all_prices <- make_data_table("index close split trueshares truevalue dividend truedividend
+                           2015-03-18  50    1     1          52        1        2           
+                           2015-03-19  24    0.5   2          50        0        0           
+                           2015-03-20  27    1     2          59        1.5      1.5
+                           2015-03-21  26    1     2          58        0.5      0.5")
+  all_prices <- as.xts(all_prices)
+  
   true_daily <- true_return(all_prices, 'daily')
   
   expected_daily <- xts( data.frame(daily_truereturn = c(0,
                                                       (48-50)/50, #assume we buy the close, no dividend collected
                                             (54+3-48)/48, #collect the 1.5 dividend on 2 shares
                                             (26+0.5-27)/27)),#same as (53-54)/54
-                          order.by = all_prices[,index]) 
+                          order.by = index(all_prices) ) 
   expect_that( true_daily,
                equals(expected_daily))
 
   true_weekly <- true_return(all_prices, 'weekly')
   expected_weekly <- xts( data.frame(weekly_truereturn = (52+3+1-50)/50 ),
-                          order.by = all_prices[4,index])
+                          order.by = index(all_prices[4,]) )
   
   expect_that( true_weekly,
                equals(expected_weekly) )
   #Note that weekly returns are not the product or sum of daily returns
 })
 
-test_that("compounded_value computed as if dividends are reinvested in fractional shares",{
+test_that("reinvested_value computed as if dividends are reinvested in fractional shares",{
   expect_that( TRUE,
                equals(FALSE))
 })
@@ -429,7 +551,13 @@ test_that("true_value has same return as adjusted close",{
   true_value_price <- true_value( price, dividend, splits = splits)
   
   true_value_price <- as.data.table(true_value_price)
-  true_value_price[, compoundedshares := trueshares + cumsum(trueshares*truedividend/close)]
+  # truly compounded shares would be paid dividends on the compounded shares.
+  # this assumes you get paid dividends on your true shares only.
+  # initialize compoundedshares to trueshares at first index (always 1, unless first tick
+  # has a split). On dividend, compoundedshares increases by (compoundedshares*truedividend/close)
+  # On split, compounded shares gets divided by split.
+  true_value_price[, compoundedshares := trueshares * cumprod(1+truedividend/close)]
+#   true_value_price[, compoundedshares := trueshares + cumsum(trueshares*truedividend/close)]
   true_value_price[, compoundedvalue := compoundedshares * close + cumsum(compoundedshares*truedividend)]
   true_value_price <- as.xts(true_value_price)
   
@@ -452,10 +580,8 @@ test_that("true_value has same return as adjusted close",{
   #return since 2007 is off by 25%
   expect_that( tv_return,
                equals(adjusted_return, tolerance = 0.25, scale = 1) )
-  #reinvesting the dividend using fractional shares gets us closer to
-  #what the adjustment is doing
   expect_that( cv_return,
-               equals(adjusted_return, tolerance = 0.03, scale = 1) )
+               equals(adjusted_return, tolerance = 0.42, scale = 1) )
   
   adj_daily <- quantmod::dailyReturn( adjusted_price[, adj_col] )
   tv_daily <- quantmod::dailyReturn( true_value_price[, tv_col] )

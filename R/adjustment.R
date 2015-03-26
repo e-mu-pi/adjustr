@@ -175,83 +175,168 @@ true_value <- function(price_data, dividend, ..., splits) {
 #' plus dividends. Those dividends are not included in the basis for the following day.
 #' 
 #' @export
-true_return <- function(true_value_data, period = 'monthly') {
+true_return <- function(x, ...) UseMethod("true_return")
+
+#' Compute true return from split adjusted shares, dividends, and closing prices.
+#' 
+#' Computes the return of buying the given number of shares at the first closing price
+#' and exiting at any intermediate closing price including splits and dividends. The
+#' number of shares should only change based on splits; no accounting is done to rebase
+#' the return for other purchases and sales of shares. The dividends must be as they would
+#' historically have been reported, not split adjusted as Yahoo provides. A dividend on 
+#' the first tick is not included as Yahoo reports them on the ex-date. 
+#' 
+#' @param split_adjusted_shares Numeric vector of number of shares accounting
+#'   for share splits. Typically, starts with 1 and adjusts for each split to reflect what
+#'   that 1 share has become.
+#' @param split_unadjusted_dividends Numeric vector of dividends as they would 
+#'   have been announced historically. The values returned from Yahoo are split adjusted. 
+#'   For example, a dividend of 0.2 that occured before a 2:1 split would be reported as
+#'   0.1 by Yahoo (assuming no subsequent splits). This function expects the 0.2. Available
+#'   as \code{truedividend} as returned by \code{true_value}.
+#' @param close The historical closing prices with no adjustments.
+#' @param initial_trueclose Optional starting value to measure returns against. Default is
+#' NULL, i.e., just use the first ticks from the other data vectors. If used, the first 
+#' dividend will be included.
+#' 
+#' @return A numeric vector the same length as the inputs with the arithmetic return from
+#' the first close including dividends.
+#' 
+#' @export
+true_return.default <- function(split_adjusted_shares, split_unadjusted_dividends, close, 
+                                initial_trueclose = NULL) {
+  trueclose <- split_adjusted_shares * close
+  if( is.null(initial_trueclose) ) {
+    initial_trueclose <- trueclose[1]
+    paid_dividends <- function(x) c(0, x[-1])
+  } else {
+    paid_dividends <- function(x) x
+  }
+  (trueclose + cumsum(split_adjusted_shares * paid_dividends(split_unadjusted_dividends) ) - 
+     initial_trueclose)/ initial_trueclose
+}
+
+#' @export
+true_return.xts <- function(true_value_xts, period = 'monthly') {
   period_opts <- list(daily = "days", weekly = "weeks", monthly = "months", 
-                  quarterly = "quarters", yearly = "years", annually = "years")
-  end_points <- xts::endpoints(as.xts(true_value_data[,index]), on = period_opts[[period]])
-#   end_points <- end_points[-1] # first is always zero, no?
-  
-#   dividend_paid_points <- end_points-1
-  n_points <- length(end_points)
+                      quarterly = "quarters", yearly = "years", annually = "years")
+  end_points <- xts::endpoints( index(true_value_xts), 
+                                on = period_opts[[period]])
+  n <- length(end_points)
+  raw_ret_dt <- true_return( as.data.table(true_value_xts), 
+                       start = c(1, end_points[-c(1,n)] ),
+                       end = end_points[-1] )
+  # dt version gives intermediate returns between start and end
+  # to match quantmod, only return the values at endpoints
+  # end_points[-1]: remove initial starting point
+  # -1: indexing is off by 1 because true_return will not have a return on the
+  # first tick
+  if ( period == 'daily' ) {
+    initial_zero_to_match_quantmod <- data.table(index = index(true_value_xts[1,]),
+                                                 rawreturn = 0)
+    raw_ret <- as.xts( rbind( initial_zero_to_match_quantmod,
+                              raw_ret_dt ) )
+  } else {
+    raw_ret <- as.xts( raw_ret_dt[end_points[-1]-1,] ) 
+  }
+  colnames(raw_ret) <- paste(period, "truereturn", sep = "_")
+  raw_ret
+} 
+
+#' @export
+true_return.data.table <- function(true_value_data, start, end) {
+
+  n_intervals <- length(end)
   n <- nrow(true_value_data)
-# 
-#   if( length(end_points) == 1 ) {
-#     
+
+#   if( quantmod::timeBased(end) ) {
+#     end_index <- true_value_data[, as.POSIXct(index) == end]
+#   } else if( is.Date(end) ) {
+#     end_index <- true_value_data[, as.Date(index) == end]
+#   } else if( is.IDate(end) ) {
+#     end_index <- true_value_data[, as.IDate(index) == end]
+#   } else {
+#     end_index <- end
 #   }
+  if( xts::timeBased(end) ) {
+    end_index <- true_value_data[, as.IDate(index) %in% as.IDate(end) ]
+  } else {
+    end_index <- end
+  }
+  if( xts::timeBased(start) ) {
+    start_index <- true_value_data[, as.IDate(index) %in% as.IDate(start) ]
+  } else {
+    start_index <- start
+  }
+#   true_value_data[, init_index := 0]
+#   true_value_data[start_index, init_index := 1]
+#   true_value_data[, init_index := cumsum(init_index)]
 
   true_value_data[, period_index := 0]
-  true_value_data[end_points, period_index := 1]
-  true_value_data[, period_index := cumsum(period_index)]
+  true_value_data[end_index, period_index := 1]
+  true_value_data[, period_index := cumsum( c(0,period_index[-n]) )]
+  true_value_data[1, period_index := -1]
 
+#   true_value_data[, init_index := 0]
+#   true_value_data[start_index, init_index := 1]
+#   true_value_data[, init_index := cumsum(init_index)]
+#   if ( true_value_data[-1, any(init_index < period_index)])
+
+#   initial_trueclose <- true_value_data[1, trueshares*close]
+#   previous_period_trueclose <- true_value_data[,last(trueshares * close), by = period_index]
+#   previous_period_trueclose[, V1 := c(initial_trueclose, V1[-(n_intervals+1)])]
+#   initial_trueclose <- dplyr::select(
+#     dplyr::mutate( true_value_data[start_index,], 
+#                    trueclose = close * trueshares), 
+#     period_index, trueclose)
+#   previous_period_trueclose <- c( true_value_data[period_index==0, first(trueshares * close)],
+#                                   previous_period_trueclose[-(n_intervals+1),V1])
+
+# initial_tc <- data.table( period_index = true_value_data[, unique(init_index)],
+#                           initial_trueclose = true_value_data[start_index, close * trueshares])
+#   setkey(true_value_data, period_index)
+#   with_previous_trueclose <- true_value_data[initial_tc,]
+#   raw_ret <- with_previous_trueclose[, true_return(trueshares, truedividend, close, initial_trueclose), 
+#                              by = period_index]
+  initial_trueclose <- true_value_data[start_index, close * trueshares]
+  raw_ret <- true_value_data[period_index > -1, true_return(trueshares, truedividend, close, initial_trueclose[.GRP]), 
+                             by = period_index]
+  #   if( overlap ) {
+  #     data.table( index = true_value_data[end_index, index],
+  #                 rawreturn = raw_ret[-1,V1])
+  #   } else {
+  ret <- data.table( index = true_value_data[period_index > -1, index],
+              rawreturn = raw_ret[,V1])
+  #   }
+  true_value_data[, period_index := NULL]
+  ret
   # Dividends are paid to the holder on the previous day in Yahoo data.
   # Therefore, they need to be offset by 1 as to which period they are
   # paid in. A dividend on the initial day should not be included because
   # it would be paid in the previous period. If the initial period is partial,
   # I suppose it should be included, but currently it's not. The first period
   # isn't perfect anyway because we don't have the true starting price.
-  true_value_data[, dividend_paid_index := c(0, period_index[-n])]
+#   true_value_data[, dividend_paid_index := c(0, period_index[-n])]
+# 
+#   true_value_data[, trueclose := close * trueshares]
+#   true_value_data[, inperiod_dividend := truedividend]
+#   true_value_data[1, inperiod_dividend := 0]
+#   true_value_data[, dividends_paid := cumsum(inperiod_dividend * trueshares),
+#                   by = dividend_paid_index]
+#   true_value_data[, trueclose_plus_period_dividends := trueclose + dividends_paid]
 
-  true_value_data[, trueclose := close * trueshares]
-  true_value_data[, inperiod_dividend := truedividend]
-  true_value_data[1, inperiod_dividend := 0]
-  true_value_data[, dividends_paid := cumsum(inperiod_dividend * trueshares),
-                  by = dividend_paid_index]
-  true_value_data[, trueclose_plus_period_dividends := trueclose + dividends_paid]
-#   setkey(true_value_data, "period_index")
-#   trueclose_plus_div <- div[true_value_data, last(dividends_paid) + last(trueclose),
-#                                         by = period_index]
-                        
-  end_points[1] <- 1
-  truereturn <- quantmod::Delt( true_value_data[end_points[-n_points],trueclose], 
-                                true_value_data[end_points[-1],trueclose_plus_period_dividends])
-  true_value_data[, period_index := NULL]
-  true_value_data[, dividend_paid_index := NULL]
-  true_value_data[, trueclose := NULL]
-  true_value_data[, inperiod_dividend := NULL]
-  true_value_data[, trueclose_plus_period_dividends := NULL]
+#   end_points[1] <- 1
+#   truereturn <- quantmod::Delt( true_value_data[end_points[-n_points],trueclose], 
+#                                 true_value_data[end_points[-1],trueclose_plus_period_dividends])
+#   true_value_data[, period_index := NULL]
+#   true_value_data[, dividend_paid_index := NULL]
+#   true_value_data[, trueclose := NULL]
+#   true_value_data[, inperiod_dividend := NULL]
+#   true_value_data[, trueclose_plus_period_dividends := NULL]
 
-  ret <- xts::xts( truereturn, order.by = true_value_data[end_points[-1], index])
-  colnames(ret) <- paste(period,"truereturn", sep = "_")
-  ret
-# quantmod::periodReturn: 
-#   xx <- try.xts(x)
-#   if (inherits(x, "ts")) {
-#     x <- na.omit(try.xts(x))
-#     xtsAttributes(x) <- CLASS(x) <- NULL
-#     xx <- x
-#     TS <- TRUE
-#   }
-#   else TS <- FALSE
-#   if (has.Op(xx) & has.Cl(xx)) {
-#     getFirst <- function(X) Op(X)
-#     getLast <- function(X) Cl(X)
-#   }
-#   else getFirst <- getLast <- function(X) X[, 1]
-#   on.opts <- list(daily = "days", weekly = "weeks", monthly = "months", 
-#                   quarterly = "quarters", yearly = "years", annually = "years")
-#   ep <- endpoints(xx, on = on.opts[[period]])
-#   ret <- Delt_(Cl(to_period(xx, period = on.opts[[period]], 
-#                             ...)), type = type)
-#   if (leading) {
-#     firstval <- as.numeric(Delt_(getFirst(xx[1]), getLast(xx[ep[2]]), 
-#                                  type = type))
-#     ret[1, ] <- firstval
-#   }
-#   colnames(ret) <- paste(period, "returns", sep = ".")
-#   if (TS) 
-#     xx <- 1
-#   tmp.ret <- reclass(ret, xx[ep[-1]])
-#   if (is.null(subset)) 
-#     subset <- "/"
-#   reclass(as.xts(tmp.ret)[subset])
+#   ret <- xts::xts( truereturn, order.by = true_value_data[end_points[-1], index])
+#   colnames(ret) <- paste(period,"truereturn", sep = "_")
+
+
+
 }

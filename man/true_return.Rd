@@ -4,7 +4,7 @@
 \alias{true_return}
 \title{Compute period returns as value change plus dividends.}
 \usage{
-true_return(true_value_data, period = "monthly")
+true_return(x, ...)
 }
 \arguments{
 \item{true_value_data}{A \code{data.table} including columns \code{index, close, trueshares, truedividends}.
