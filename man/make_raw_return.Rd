@@ -6,26 +6,6 @@
 \usage{
 make_raw_return(x, ...)
 }
-\arguments{
-\item{raw_value_data}{A \code{data.table} including columns \code{index, close, rawshares, rawdividends}.
-The \code{index} column must be a valid type for \code{xts} indexing. Multi-symbol data
-is not supported.}
-
-\item{period}{A string indicating a granularity. See quantmod::periodReturn.}
-}
-\value{
-An \code{xts} object ordered by the \code{index} column granulated to period. The
-returns are calculated as close to close values multiplied by rawshares to account for
-splits and adding in dividends over the period. Note that a dividend on date t in Yahoo
-data is only paid to those holding at the close on date t-1. Therefore, there a dividend
-on date t for which t is also the period start will be recorded in the period ending on date
-t, not the next period starting on t. In particular, daily returns include a dividend on
-date t in the return from t-1 to t, recorded as the return on date t.
-
-Note that daily raw returns for one week do not simply convert to weekly returns as prod(1+r).
-Each day the basis for return is the close, but the return comes from the following close
-plus dividends. Those dividends are not included in the basis for the following day.
-}
 \description{
 Compute period returns as value change plus dividends.
 }

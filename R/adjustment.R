@@ -161,23 +161,6 @@ make_raw_value <- function(price_data, dividend, ..., splits) {
 
 #' Compute period returns as value change plus dividends.
 #' 
-#' @param raw_value_data A \code{data.table} including columns \code{index, close, rawshares, rawdividends}. 
-#' The \code{index} column must be a valid type for \code{xts} indexing. Multi-symbol data
-#' is not supported.
-#' @param period A string indicating a granularity. See quantmod::periodReturn.
-#' 
-#' @return An \code{xts} object ordered by the \code{index} column granulated to period. The
-#' returns are calculated as close to close values multiplied by rawshares to account for
-#' splits and adding in dividends over the period. Note that a dividend on date t in Yahoo 
-#' data is only paid to those holding at the close on date t-1. Therefore, there a dividend
-#' on date t for which t is also the period start will be recorded in the period ending on date
-#' t, not the next period starting on t. In particular, daily returns include a dividend on
-#' date t in the return from t-1 to t, recorded as the return on date t.
-#' 
-#' Note that daily raw returns for one week do not simply convert to weekly returns as prod(1+r).
-#' Each day the basis for return is the close, but the return comes from the following close
-#' plus dividends. Those dividends are not included in the basis for the following day.
-#' 
 #' @export
 make_raw_return <- function(x, ...) UseMethod("make_raw_return")
 
@@ -220,6 +203,24 @@ make_raw_return.default <- function(split_adjusted_shares, split_unadjusted_divi
      initial_rawclose)/ initial_rawclose
 }
 
+#' Compute period returns as value change plus dividends.
+#' 
+#' @param raw_value_xts An \code{xts} object with columns \code{close, rawshares, rawdividend}
+#' or with a symbol \code{SYM}, columns \code{SYM.Close, SYM.Rawshares, SYM.Rawdividend}.
+#' @param period A string indicating a granularity. See quantmod::periodReturn.
+#' 
+#' @return An \code{xts} object ordered by the \code{index} column granulated to period. The
+#' returns are calculated as close to close values multiplied by rawshares to account for
+#' splits and adding in dividends over the period. Note that a dividend on date t in Yahoo 
+#' data is only paid to those holding at the close on date t-1. Therefore, there a dividend
+#' on date t for which t is also the period start will be recorded in the period ending on date
+#' t, not the next period starting on t. In particular, daily returns include a dividend on
+#' date t in the return from t-1 to t, recorded as the return on date t.
+#' 
+#' Note that daily raw returns for one week do not simply convert to weekly returns as prod(1+r).
+#' Each day the basis for return is the close, but the return comes from the following close
+#' plus dividends. Those dividends are not included in the basis for the following day.
+#' 
 #' @export
 make_raw_return.xts <- function(raw_value_xts, period = 'monthly') {
   period_opts <- list(daily = "days", weekly = "weeks", monthly = "months", 
@@ -249,10 +250,21 @@ make_raw_return.xts <- function(raw_value_xts, period = 'monthly') {
   raw_ret
 } 
 
+#' Compute raw return between start and end.
+#' 
+#' @param raw_value_data A data.frame of raw_value data as produced by make_raw_data.
+#' @param start An index vector (numeric or logical) of starting points.
+#' @param end An index vector (numeric or logical) of ending poitns.
+#' @return A data.frame of raw returns with columns index and rawreturn. 
+#' If the (start,end] ranges do not overlap, the returns are a running calculation from
+#' each start indexed from start+1 to end. If there the (start,end] ranges do not partition
+#' the index of the input, the missing indexes are omitted (especially useful when looking
+#' at trade returns in which you are not always in the market). If there is overlap in
+#' the (start,end] ranges, there is just one return calculated for each end indexed by the 
+#' index at end.
+#' 
 #' @export
 make_raw_return.data.table <- function(raw_value_data, start, end) {
-
-  n_intervals <- length(end)
   n <- nrow(raw_value_data)
 
   if( xts::timeBased(end) ) {
@@ -265,7 +277,7 @@ make_raw_return.data.table <- function(raw_value_data, start, end) {
   } else {
     start_index <- start
   }
-  num_starts <- length(start_index)
+  n_intervals <- length(start_index)
 
   raw_value_data[, period_index := 0]
   raw_value_data[end_index, period_index := 1]
@@ -342,3 +354,198 @@ make_raw_return.data.table <- function(raw_value_data, start, end) {
 make_reinvested_shares <- function(close, split_adjusted_shares, unadjusted_dividends) {
   split_adjusted_shares*cumprod(1+unadjusted_dividends/c(Inf,close[-length(close)]))
 }
+
+#' Compute period returns assuming reinvestment of dividends.
+#' 
+#' @param raw_value_data A \code{data.table} including columns \code{index, close, rawshares, rawdividends}. 
+#' The \code{index} column must be a valid type for \code{xts} indexing. Multi-symbol data
+#' is not supported.
+#' @param period A string indicating a granularity. See quantmod::periodReturn.
+#' 
+#' @return An \code{xts} object ordered by the \code{index} column granulated to period. The
+#' returns are calculated as close to close values multiplied by rawshares to account for
+#' splits and adding in dividends over the period. Note that a dividend on date t in Yahoo 
+#' data is only paid to those holding at the close on date t-1. Therefore, there a dividend
+#' on date t for which t is also the period start will be recorded in the period ending on date
+#' t, not the next period starting on t. In particular, daily returns include a dividend on
+#' date t in the return from t-1 to t, recorded as the return on date t.
+#' 
+#' Note that daily raw returns for one week do not simply convert to weekly returns as prod(1+r).
+#' Each day the basis for return is the close, but the return comes from the following close
+#' plus dividends. Those dividends are not included in the basis for the following day.
+#' 
+#' @export
+make_reinvested_return <- function(x, ...) UseMethod("make_reinvested_return")
+
+#' Compute reinvested return from split adjusted shares, dividends, and closing prices.
+#' 
+#' Computes the return of buying the given number of shares at the first closing price
+#' and exiting at any intermediate closing price including splits and dividends. The
+#' number of shares will change based on splits and reinvesting dividends; 
+#' no accounting is done to rebase
+#' the return for other purchases and sales of shares. The dividends must be as they would
+#' historically have been reported, not split adjusted as Yahoo provides. A dividend on 
+#' the first tick is not included as Yahoo reports them on the ex-date. 
+#' 
+#' @param close The historical closing prices with no adjustments.
+#' @param split_adjusted_shares Numeric vector of number of shares accounting
+#'   for share splits. Typically, starts with 1 and adjusts for each split to reflect what
+#'   that 1 share has become.
+#' @param unadjusted_dividends Numeric vector of dividends as they would 
+#'   have been announced historically. The values returned from Yahoo are split adjusted. 
+#'   For example, a dividend of 0.2 that occured before a 2:1 split would be reported as
+#'   0.1 by Yahoo (assuming no subsequent splits). This function expects the 0.2. Available
+#'   as \code{rawdividend} as returned by \code{make_raw_value}.
+#' @param initial_close Optional starting close to measure returns against. Default is
+#' NULL, i.e., just use the first tick from the close vector. If used, the first 
+#' dividend will be included and initial_shares must be provided. 
+#' @param initial_shares Optional starting shares to measure returns against. Default is NULL,
+#' i.e., just use the first tick in the split_adjusted_shares vector. If used, the 
+#' initial_close must be provided.
+#' 
+#' @return A numeric vector the same length as the inputs with the arithmetic return from
+#' the first close assuming dividends are reinvested in shares per make_reinvested_shares.
+#' 
+#' @export
+make_reinvested_return.default <- function(close, split_adjusted_shares, unadjusted_dividends,  
+                                    initial_close = NULL, initial_shares = NULL) {
+  if( is.null(initial_close) && is.null(initial_shares) ) {
+    reinvested_shares <- make_reinvested_shares( close, split_adjusted_shares, unadjusted_dividends)
+    initial_value <- reinvested_shares[1] * close[1]
+  } else {
+    reinvested_shares <- make_reinvested_shares( c(initial_close, close), 
+                                                 c(initial_shares, split_adjusted_shares), 
+                                                 c(0, unadjusted_dividends) )[-1]
+    initial_value <- initial_shares * initial_close
+  }
+  (close*reinvested_shares - initial_value ) / initial_value
+}
+
+#' Compute reinvested return between start and end.
+#' 
+#' @param price_data A data.frame of prices as produced by make_raw_data. In particular,
+#' requires columns index, close, rawshares, and rawdividend.
+#' @param start An index vector (numeric or logical) of starting points.
+#' @param end An index vector (numeric or logical) of ending poitns.
+#' @return A data.frame of reinvested returns with columns index and reinvested_return. 
+#' If the (start,end] ranges do not overlap, the returns are a running calculation from
+#' each start indexed from start+1 to end. If there the (start,end] ranges do not partition
+#' the index of the input, the missing indexes are omitted (especially useful when looking
+#' at trade returns in which you are not always in the market). If there is overlap in
+#' the (start,end] ranges, there is just one return calculated for each end indexed by the 
+#' index at end.
+#' 
+#' @export
+make_reinvested_return.data.table <- function(price_data, start, end) {
+  n <- nrow(price_data)
+  
+  if( xts::timeBased(end) ) {
+    end_index <- price_data[, which(as.IDate(index) %in% as.IDate(end)) ]
+  } else {
+    end_index <- end
+  }
+  if( xts::timeBased(start) ) {
+    start_index <- price_data[, which(as.IDate(index) %in% as.IDate(start)) ]
+  } else {
+    start_index <- start
+  }
+  n_intervals <- length(start_index)  
+  
+  price_data[, period_index := 0]
+  price_data[end_index, period_index := 1]
+  price_data[start_index, period_index := period_index + 1]
+  price_data[, period_index := c(0, cumsum( period_index)[-n]) ]
+  price_data[, on_period := period_index %in% period_index[end_index]]
+  
+  initial_close <- price_data[start_index, close]
+  initial_shares <- price_data[start_index, rawshares]
+  overlap <- any( start_index[-1] < end_index[-n_intervals])
+  if( overlap ) {
+#     overlapped_shares <- numeric(length(initial_rawclose))  
+    overlapped_dividend <- numeric(length(initial_close))  
+    for( idx in seq_along(start_index)) {
+#       overlapped_shares[idx] <- price_data[start_index[idx]:end_index[idx],
+#                                            make_reinvested_shares( close, rawshares, rawdividend ) ]
+      overlapped_dividend[idx] <- price_data[start_index[idx]:end_index[idx],
+               ( last( make_reinvested_shares( close, rawshares, rawdividend) ) /
+                  last(rawshares) - 1 ) *
+                 initial_close[idx] ]
+    }
+#     overlapped_dividend <- overlapped_shares
+    ret_data <- price_data[(on_period),  list(reinvested_return = 
+                                                make_reinvested_return(last(close),
+                                                                       last(rawshares), 
+                                                                       overlapped_dividend[.GRP], 
+                                                                       initial_close[.GRP],
+                                                                       initial_shares[.GRP]) ), 
+                              by = period_index]
+  } else {
+    ret_data <- price_data[(on_period), 
+                              list(reinvested_return = make_reinvested_return(close, 
+                                                                              rawshares, 
+                                                                              rawdividend, 
+                                                                              initial_close[.GRP],
+                                                                              initial_shares[.GRP])), 
+                              by = period_index]
+  }
+  ret <- data.table( index = price_data[(on_period), index],
+                     reinvested_return = ret_data[,reinvested_return])
+  price_data[, period_index := NULL]
+  price_data[, on_period := NULL]
+  ret
+  # Dividends are paid to the holder on the previous day in Yahoo data.
+  # Therefore, they need to be offset by 1 as to which period they are
+  # paid in. A dividend on the initial day should not be included because
+  # it would be paid in the previous period. If the initial period is partial,
+  # I suppose it should be included, but currently it's not. The first period
+  # isn't perfect anyway because we don't have the true starting price.
+  
+  
+}
+
+#' Compute period returns by reinvesting within period dividends.
+#' 
+#' @param price_xts An \code{xts} object with columns \code{close, rawshares, rawdividend}
+#' or with a symbol \code{SYM}, columns \code{SYM.Close, SYM.Rawshares, SYM.Rawdividend}.
+#' @param period A string indicating a granularity. See quantmod::periodReturn.
+#' 
+#' @return An \code{xts} object ordered by the \code{index} column granulated to period. The
+#' returns are calculated as close to close values multiplied by rawshares to account for
+#' splits and adding in dividends over the period. Note that a dividend on date t in Yahoo 
+#' data is only paid to those holding at the close on date t-1. Therefore, there a dividend
+#' on date t for which t is also the period start will be recorded in the period ending on date
+#' t, not the next period starting on t. In particular, daily returns include a dividend on
+#' date t in the return from t-1 to t, recorded as the return on date t.
+#' 
+#' Note that daily raw returns for one week do not simply convert to weekly returns as prod(1+r).
+#' Each day the basis for return is the close, but the return comes from the following close
+#' plus dividends. Those dividends are not included in the basis for the following day.
+#' 
+#' @export
+make_reinvested_return.xts <- function(price_xts, period = 'monthly') {
+  period_opts <- list(daily = "days", weekly = "weeks", monthly = "months", 
+                      quarterly = "quarters", yearly = "years", annually = "years")
+  end_points <- xts::endpoints( index(price_xts), 
+                                on = period_opts[[period]])
+  end_points <- end_points[-1] #drop initial 0
+  if( ! 1 %in% end_points ) end_points <- c(1, end_points)
+  n <- length(end_points)
+  reinvested_ret_dt <- make_reinvested_return( as.data.table(price_xts), 
+                                 start = end_points[-n],
+                                 end = end_points[-1] )
+  if ( period == 'daily' ) {
+    initial_zero_to_match_quantmod <- data.table(index = index(price_xts[1,]),
+                                                 reinvested_return = 0)
+    reinvested_ret <- as.xts( rbind( initial_zero_to_match_quantmod,
+                              reinvested_ret_dt ) )
+  } else {
+    # dt version gives intermediate returns between start and end
+    # to match quantmod, only return the values at endpoints
+    # end_points[-1]: remove initial starting point
+    # -1: indexing is off by 1 because make_reinvested_return will not have a return on the
+    # first tick
+    reinvested_ret <- as.xts( reinvested_ret_dt[end_points[-1]-1,] ) 
+  }
+  colnames(reinvested_ret) <- paste(period, "reinvested_return", sep = "_")
+  reinvested_ret
+} 

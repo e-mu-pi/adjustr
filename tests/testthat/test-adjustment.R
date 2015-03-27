@@ -8,6 +8,26 @@ make_data_table <- function(string_table) {
   data.table::setDT(data)
 }
 
+test_that("unadjust.default removes split adjustment from dividends",{
+  unadjusted_dividends <- unadjust(dividend, splits)
+  expect_that( TRUE,
+               equals(FALSE) )
+})
+
+# test_that("unadjust.data.table removes split adjustment from dividends",{
+#   unadjusted_data <- unadjust(dividend, splits)
+#   #unadjusted_dividend, dividend, split, shares
+#   expect_that( TRUE,
+#                equals(FALSE) )
+# })
+# 
+# test_that("unadjust.xts removes split adjustment from dividends",{
+#   unadjusted_data <- unadjust(dividend, splits)
+#   #unadjusted_dividend, dividend, split, shares
+#   expect_that( TRUE,
+#                equals(FALSE) )
+# })
+
 test_that("make_raw_value adds dividend values into price data",{
   price_data <- make_data_table("index symbol high close
                                 2015-03-16 SYM 56.6  55.94
@@ -494,6 +514,206 @@ test_that("make_reinvested_shares computed as if dividends are reinvested in fra
                                raw_prices[3:5,rawdividend])
   expect_that( start_after_split,
                equals(resized * 2) )
+})
+
+test_that("make_reinvested_return.default computes returns on reinvested dividends",{
+  # NOTE: First dividend is not included.
+  # Dividends recorded on date t in yahoo data are paid to you if you are a shareholder
+  # as of the close t-1, i.e., going into the open on t you are a shareholder
+  # (t is the Ex-date, although on yahoo under "Company Events" it will list t-1 as the 
+  # Ex-date. that doesn't agree with other sources.)
+  
+  # In this example, the dividend paid at the first tick is not available to us
+  # unless we already owned the stock on the day before this data set starts.
+  # The dividend on the 3rd tick would be paid to us if we owned the stock at the close
+  # on the 2nd tick.
+  
+  # For the purpose of calculating returns, the first dividend is not collected, the second is
+  # and is used to calculate the return from tick 2 to tick 3. In general, price data
+  # needs corresponding shares owned at the close data to determine raw returns if we
+  # only hold at a subset of times.
+  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+                                2015-03-17  50    1     1          52        1        2           
+                                2015-03-18  52    1     1          55        0.5      1
+                                2015-03-19  24    0.5   2          51        0        0           
+                                2015-03-20  27    1     2          60        1.5      1.5
+                                2015-03-21  26    1     2          59        0.5      0.5")
+  make_sure <- dplyr::select(all_prices, index, close)
+  splits <- make_data_table("index split
+                            2015-03-19 0.5")
+  dividend <- make_data_table("index dividend
+                              2015-03-17 1
+                              2015-03-18 0.5
+                              2015-03-20 1.5
+                              2015-03-21 0.5")
+  raw_prices <- make_raw_value(make_sure, dividend, splits = splits)  
+  expect_that( data.table::setkey(all_prices, index), 
+               equals(raw_prices) )
+  
+  reinvested_shares <- make_reinvested_shares(raw_prices[,close], 
+                                      raw_prices[,rawshares],
+                                      raw_prices[,rawdividend])
+  
+  whole_period <- make_reinvested_return( raw_prices[, close],
+                                          raw_prices[, rawshares], 
+                                          raw_prices[, rawdividend] )
+  expect_that( whole_period[1],
+               equals(0) )
+  expect_that( whole_period[2],
+               equals( (reinvested_shares[2]*52 - 50) / 50 ) )
+  expect_that( whole_period[3],
+               equals( ( reinvested_shares[3]*24 - 50) / 50 ) )
+  expect_that( whole_period[4],
+               equals( ( reinvested_shares[4]*27 - 50) / 50 ) )
+  expect_that( whole_period[5],
+               equals( ( reinvested_shares[5]*26 - 50)/50 ) )
+  
+  alternate_version <- make_reinvested_return( raw_prices[2:5, close],
+                                        raw_prices[2:5, rawshares],
+                                        raw_prices[2:5, rawdividend],
+                                        raw_prices[1, close],
+                                        raw_prices[1, rawshares])
+  expect_that( alternate_version,
+               equals(whole_period[-1]) )
+
+  alternate_post_split <- make_reinvested_return( raw_prices[3:5, close],
+                                               raw_prices[3:5, rawshares],
+                                               raw_prices[3:5, rawdividend],
+                                               raw_prices[2, close],
+                                               raw_prices[2, rawshares])
+  expect_that( alternate_post_split,
+               equals(  make_reinvested_return( raw_prices[2:5, close],
+                                                raw_prices[2:5, rawshares], 
+                                                raw_prices[2:5, rawdividend] )[-1]
+               ) )
+  
+  partial_period <- make_reinvested_return( raw_prices[2:5, close], 
+                                     raw_prices[2:5, rawshares], 
+                                     raw_prices[2:5, rawdividend])
+  reinvested_shares <- make_reinvested_shares( raw_prices[2:5, close],
+                                               raw_prices[2:5, rawshares],
+                                               raw_prices[2:5, rawdividend] )
+  expect_that( partial_period[1],
+               equals(0) )
+  expect_that( partial_period[2],
+               equals( ( reinvested_shares[2] * 24 - 52) / 52 ) )
+  expect_that( partial_period[3],
+               equals( ( reinvested_shares[3] * 27 - 52) / 52 ) )
+  expect_that( partial_period[4],
+               equals( ( reinvested_shares[4] * 26 - 52)/52 ) )
+  
+  post_split <- make_reinvested_return( raw_prices[3:5, close], 
+                                 raw_prices[3:5, rawshares], 
+                                 raw_prices[3:5, rawdividend]) 
+  post_split_resized <- make_reinvested_return( raw_prices[3:5, close],
+                                                c(1,1,1),
+                                         raw_prices[3:5, rawdividend])
+  expect_that( post_split,
+               equals(post_split_resized) )
+})
+
+test_that("make_reinvested_return.data.table computed based on matching start/end index",{
+  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+                                2015-03-17  50    1     1          52        1        2           
+                                2015-03-18  52    1     1          55        0.5      1
+                                2015-03-19  24    0.5   2          50        0        0           
+                                2015-03-20  27    1     2          59        1.5      1.5
+                                2015-03-21  26    1     2          58        0.5      0.5")
+  
+  start <- as.POSIXct(all_prices[-5,index])
+  end <- as.POSIXct(all_prices[-1,index])
+  
+  expected_every <- data.table( index = all_prices[-1,index],
+                                reinvested_return = c((52 * ( 1 + 1/50 )-50)/50, 
+                                              (48-52)/52, 
+                                              (27 * ( 1 + 1.5/24) - 24)/24,
+                                              (26 * ( 1 + 0.5/27) - 27)/27 ) ) 
+  expect_that( make_reinvested_return(all_prices, 1:4, 2:5),
+               equals(expected_every) )
+  expect_that( make_reinvested_return(all_prices, start, end),
+               equals(expected_every) )
+  expect_that( make_reinvested_return(all_prices, as.Date(start), as.Date(end) ),
+               equals(expected_every) )
+  expect_that( make_reinvested_return(all_prices, as.IDate(start), as.IDate(end) ),
+               equals(expected_every) )
+  
+  start <- as.POSIXct(all_prices[c(1,3),index])
+  end <- as.POSIXct(all_prices[c(3,5),index])
+  
+  expected_sparse <- data.table( index = all_prices[-1,index],
+                                 reinvested_return = c((52 * (1+1/50) - 50)/50, 
+                                               (48 * (1+1/50) - 50)/50, 
+                                               (27 * (1+1.5/24) - 24)/24,
+                                               (26 * (1+1.5/24) * (1+0.5/27)-24)/24 ) ) 
+  expect_that( make_reinvested_return(all_prices, c(1,3), c(3,5)),
+               equals(expected_sparse) )
+  expect_that( make_reinvested_return(all_prices, start, end),
+               equals(expected_sparse) )
+  expect_that( make_reinvested_return(all_prices, as.Date(start), as.Date(end) ),
+               equals(expected_sparse) )
+  expect_that( make_reinvested_return(all_prices, as.IDate(start), as.IDate(end) ),
+               equals(expected_sparse) )
+  
+  start <- as.POSIXct(all_prices[c(1,4),index])
+  end <- as.POSIXct(all_prices[c(2,5),index])
+  
+  expected_sparser <- data.table( index = all_prices[c(2,5),index],
+                                  reinvested_return = c((52 * (1+1/50)-50)/50, 
+                                                (26 * (1 +0.5/27) - 27)/27 ) ) 
+  expect_that( make_reinvested_return(all_prices, c(1,4), c(2,5)),
+               equals(expected_sparser) )
+  expect_that( make_reinvested_return(all_prices, start, end),
+               equals(expected_sparser) )
+  expect_that( make_reinvested_return(all_prices, as.Date(start), as.Date(end) ),
+               equals(expected_sparser) )
+  expect_that( make_reinvested_return(all_prices, as.IDate(start), as.IDate(end) ),
+               equals(expected_sparser) )
+  
+  start <- as.POSIXct(all_prices[c(1,2,3),index])
+  end <- as.POSIXct(all_prices[c(3,4,5),index])
+  
+  expected_overlap <- data.table( index = all_prices[c(3,4,5),index],
+                                  reinvested_return = c((48*(1+1/50)-50)/50, 
+                                                ( 2*27*(1+1.5/24) - 52) / 52,
+                                                (26 * (1+1.5/24) * (1+0.5/27)-24)/24 ) ) 
+  expect_that( make_reinvested_return(all_prices, c(1,2,3), c(3,4,5)),
+               equals(expected_overlap) )
+  expect_that( make_reinvested_return(all_prices, start, end),
+               equals(expected_overlap) )
+  expect_that( make_reinvested_return(all_prices, as.Date(start), as.Date(end) ),
+               equals(expected_overlap) )
+  expect_that( make_reinvested_return(all_prices, as.IDate(start), as.IDate(end) ),
+               equals(expected_overlap) )
+})
+
+test_that("make_reinvested_return.xts uses similar options as quantmod::periodReturn",{
+  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+                                2015-03-18  50    1     1          52        1        2           
+                                2015-03-19  24    0.5   2          50        0        0           
+                                2015-03-20  27    1     2          59        1.5      1.5
+                                2015-03-21  26    1     2          58        0.5      0.5")
+  all_prices <- as.xts(all_prices)
+  
+  reinvested_daily <- make_reinvested_return(all_prices, 'daily')
+  
+  expected_daily <- xts( data.frame(daily_reinvested_return = c(0,
+                                                        (48-50)/50, #assume we buy the close, no dividend collected
+                                                        (54*(1+1.5/24)-48)/48, #collect the 1.5 dividend on 2 shares
+                                                        (26*(1+0.5/27)-27)/27)),#same as (53-54)/54
+                         order.by = index(all_prices) ) 
+  expect_that( reinvested_daily,
+               equals(expected_daily))
+  
+  reinvested_weekly <- make_reinvested_return(all_prices, 'weekly')
+  expected_weekly <- xts( data.frame(weekly_reinvested_return = (2*26*(1+1.5/24)*(1+0.5/27)-50)/50 ),
+                          order.by = index(all_prices[4,]) )
+  
+  expect_that( reinvested_weekly,
+               equals(expected_weekly) )
+  
+  #Note that 1+weekly returns ARE the product of 1 + daily returns for compounded returns
+  expect_that( as.numeric(1+reinvested_weekly),
+               equals( prod(1+reinvested_daily) ) )
 })
 
 test_that("make_raw_value ignores dividends/splits outside time period except to adjust dividends",{
