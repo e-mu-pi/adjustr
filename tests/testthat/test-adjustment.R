@@ -452,9 +452,48 @@ test_that("raw_return.xts uses similar options as quantmod::periodReturn",{
   #Note that weekly returns are not the product or sum of daily returns
 })
 
-test_that("reinvested_value computed as if dividends are reinvested in fractional shares",{
-  expect_that( TRUE,
-               equals(FALSE))
+test_that("reinvested_shares computed as if dividends are reinvested in fractional shares at the previous close",{
+  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+                                2015-03-17  50    1     1          52        1        2           
+                                2015-03-18  52    1     1          55        0.5      1
+                                2015-03-19  24    0.5   2          51        0        0           
+                                2015-03-20  27    1     2          60        1.5      1.5
+                                2015-03-21  26    1     2          59        0.5      0.5")
+  make_sure <- dplyr::select(all_prices, index, close)
+  splits <- make_data_table("index split
+                            2015-03-19 0.5")
+  dividend <- make_data_table("index dividend
+                              2015-03-17 1
+                              2015-03-18 0.5
+                              2015-03-20 1.5
+                              2015-03-21 0.5")
+  raw_prices <- raw_value(make_sure, dividend, splits = splits)  
+  expect_that( data.table::setkey(all_prices, index), 
+               equals(raw_prices) )
+  
+  reinvestedshares <- reinvested_shares(raw_prices[,close],
+                                         raw_prices[,rawshares],
+                                         raw_prices[,rawdividend])
+  #first tick dividend is not received...must have been holding from the previous day
+  expect_that( reinvestedshares[1],
+               equals(1) )
+  expect_that( reinvestedshares[2],
+               equals( 1+ 1/50))
+  expect_that( reinvestedshares[3],
+               equals( 2*(1+ 1/50) ) )
+  expect_that( reinvestedshares[4],
+               equals( 2*(1+ 1/50) * (1+1.5/24 ) ) )
+  expect_that( reinvestedshares[5],
+               equals( 2*(1+ 1/50) * (1+1.5/24) * (1 + 0.5/27) ) )
+  
+  start_after_split <- reinvested_shares(raw_prices[3:5,close],
+                                        raw_prices[3:5,rawshares],
+                                        raw_prices[3:5,rawdividend])
+  resized <- reinvested_shares(raw_prices[3:5,close],
+                               c(1,1,1),
+                               raw_prices[3:5,rawdividend])
+  expect_that( start_after_split,
+               equals(resized * 2) )
 })
 
 test_that("raw_value ignores dividends/splits outside time period except to adjust dividends",{

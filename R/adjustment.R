@@ -304,3 +304,37 @@ raw_return.data.table <- function(raw_value_data, start, end) {
 
 
 }
+
+#' Compute shares held based on splits and reinvested dividends.
+#' 
+#' For a sequence of closing prices, split adjusted shares, and split unadjusted dividends,
+#' (i.e., close, raw_shares, and raw_dividends), compute the number or shares held if the
+#' dividends are reinvested.
+#' 
+#' This function assumes that a dividend at tick t is paid to the stock owners at tick t-1 (i.e.,
+#' t is the ex-date in accordance with how Yahoo reports dividends). Therefore, a dividend
+#' on the initial tick is assumed not to be received.
+#' 
+#' Per the ordinary dividends received on mutual funds in my TD Ameritrade account, the
+#' reinvestment of a dividend on date t is done at a trade price of the close on date t-1.
+#' This may be a bad assumption in other cases. And in yet other cases, it is not 
+#' practical to reinvest your dividends at all (stocks in my TD Ameritrade account). If 
+#' your account is big enough to reinvest dividends, this function may need to be
+#' modified to match your reinvestment procedure. Also for large accounts, you may
+#' need to find share buyback data to accurately reflect other ways cash will be returned
+#' to you (not handled in this function).
+#' 
+#' @param close A numeric vector of closing prices, not adjusted for splits or dividends.
+#' @param split_adjusted_shares A numeric vector of shares held. The shares should already
+#' account for splits (e.g., if you start with 1 share and there is a 2:1 split, you should
+#' have 2 shares after the split).
+#' @param unadjusted_dividends A numeric vector of dividends paid. These should not be adjusted
+#' for splits. Yahoo adjusts their dividends for splits. The raw_value function can create
+#' raw dividends (i.e., undo the split adjustment).
+#' 
+#' @return A numeric vector of shares after splits and reinvestment of dividends.
+#' 
+#' @export
+reinvested_shares <- function(close, split_adjusted_shares, unadjusted_dividends) {
+  split_adjusted_shares*cumprod(1+unadjusted_dividends/c(Inf,close[-length(close)]))
+}
