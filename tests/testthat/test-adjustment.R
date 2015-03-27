@@ -1,5 +1,5 @@
 context("Adjustment")
-require(xts)
+require(xts) # I couldn't figure out how to get xts::as.xts working without attaching
 
 make_data_table <- function(string_table) {
   data <- read.table(text = string_table, header = TRUE, stringsAsFactors = FALSE)
@@ -577,7 +577,11 @@ test_that("raw_value cannot use nonsymboled price data with multisymbol dividend
 
 test_that("raw_value has same return as adjusted close",{
   symbol <- "AAPL"
-  price <- quantmod::getSymbols(symbol)
+  getSymbols <- quantmod::getSymbols # getSymbols doesn't expect to see the 
+                                     # package name when it retrieves its
+                                     # defaults (gives a warning)
+                                     # Do this rather than attaching quantmod.
+  price <- getSymbols(symbol)
   dividend <- quantmod::getDividends(symbol)
   splits <- quantmod::getSplits(symbol)
   

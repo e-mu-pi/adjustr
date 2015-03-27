@@ -96,11 +96,15 @@ test_that("as.data.table.xts does not raise internal selfref error",{
        })
 })
 
-test_that("getDTSymbols returns getSymbols as data.table with IDate",{
+test_that("getDTSymbols returns getSymbols as data.table...is this necessary?",{
   symbol <- "VUSUX"
   actual <- getDTSymbols(symbol)
   
-  raw <- quantmod::getSymbols(symbol)
+  getSymbols <- quantmod::getSymbols # getSymbols doesn't expect to see the 
+  # package name when it retrieves its
+  # defaults (gives a warning)
+  # Do this rather than attaching quantmod.
+  raw <- getSymbols(symbol)
   expected <- as.data.table( raw )
   
   expect_that( actual,

@@ -8,7 +8,11 @@ NULL
 #' 
 #' @export
 getDTSymbols <- function(x, ...) {
-  data <- quantmod::getSymbols(x, ...)
+  getSymbols <- quantmod::getSymbols # getSymbols doesn't expect to see the 
+  # package name when it retrieves its
+  # defaults (gives a warning)
+  # Do this rather than importing getSymbols.
+  data <- getSymbols(x, ...)
   as.data.table(data)
 }
 
