@@ -8,10 +8,51 @@ make_data_table <- function(string_table) {
   data.table::setDT(data)
 }
 
+test_that("make_shares turns splits into the evolution of 1 share",{
+  splits <- c(1,0.5,1,4,1)
+  expecte_that( make_shares(splits),
+                 equals( c(1,2,2,0.5,0.5) ) )
+})
+
 test_that("unadjust.default removes split adjustment from dividends",{
-  unadjusted_dividends <- unadjust(dividend, splits)
-  expect_that( TRUE,
-               equals(FALSE) )
+  price_data <- make_data_table("index symbol high close
+                                2015-03-16 SYM 56.6  55.94
+                                2015-03-17 SYM 59.23 57.25
+                                2015-03-18 SYM 58.72 56.49")
+  dividend_data_dt <- make_data_table("index dividend
+                                      2015-03-17 0.052")
+  dividend_data_xts <- xts::xts(0.052, order.by = as.POSIXct("2015-03-17") )
+#   closing_price <- c(55.94, 57.25, 56.49)
+  dividend <- c(0, 0.052, 0)
+  no_splits <- c(1, 1, 1)
+#   expect_that( unadjust(dividend, no_splits, closing_price),
+  expect_that( unadjust(dividend, no_splits),
+    equals(dividend) )
+  
+#   closing_price_with_split <- c(55.94, 57.25, 56.49/2)
+  split_adjusted_dividend <- c(0, 0.052/2, 0)
+  splits <- c(1, 1, 0.5)
+#   expect_that( unadjust(split_adjusted_dividend, splits, closing_price_with_split),
+   expect_that( unadjust(split_adjusted_dividend, splits),
+                equals(dividend) )
+  
+#   closing_price_with_presplit <- c(55.94, 57.25, 56.49)
+  presplit <- c(0.5, 1, 1)
+#   expect_that( unadjust(dividend, presplit, closing_price_with_presplit),
+  expect_that( unadjust(dividend, presplit),
+               equals(dividend) )
+  
+  too_many_decimals <- c(0, 0.0524/2, 0)
+#   expect_that( unadjust(too_many_decimals, splits, closing_price_with_split),
+  expect_that( unadjust(too_many_decimals, splits),
+               equals(dividend) )
+  
+  more_dividends <- c(0.45, 0, 0.444, 0, 0.45)
+  more_splits <- c(1,0.5,1,4,1)
+  
+#   expect_that( unadjust( more_dividends, more_splits, more_closes),
+  expect_that( unadjust( more_dividends, more_splits),
+               equals( c(0.225, 0, 0.111, 0, 0.45) ) )
 })
 
 # test_that("unadjust.data.table removes split adjustment from dividends",{

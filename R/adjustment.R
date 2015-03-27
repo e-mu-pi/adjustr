@@ -16,6 +16,33 @@ getDTSymbols <- function(x, ...) {
   as.data.table(data)
 }
 
+#' Turn splits into evolution of single share.
+#' 
+#' @param splits A numeric vector of splits. Most values will be 1. A 2:1 split
+#' is represented as 0.5. 
+#' @return A numeric vector of shares held if splits are applied to an
+#' initial position of 1 share. 
+#' 
+#' @export
+make_shares <- function(splits) {
+  cumprod(1/splits)
+}
+
+#' Turn split adjusted dividends into unadjusted dividends.
+#' 
+#' Assumes that unadjusted dividends are only accurate to 3 decimal places.
+#' 
+#' @param split_adjusted_dividend A numeric vector of split adjusted dividends.
+#' @param splits A numeric vector of splits.
+#' @return A numeric vector of unadjusted dividends.
+#' 
+#' @export
+unadjust <- function(split_adjusted_dividend, splits) {
+  shares <- make_shares(splits)
+  n <- length(shares)
+  split_adjusted_dividend * shares / shares[n]
+}
+
 #' Make additive price adjustments without lookforward bias.
 #' 
 #' Apply dividend and split data to price series without changing
