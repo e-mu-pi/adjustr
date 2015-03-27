@@ -82,6 +82,20 @@ test_that("as.data.table.xts extracts symbol column",{
                equals( data) )
 })
 
+test_that("as.data.table.xts does not raise internal selfref error",{
+  data <- xts::xts(data.frame(a.Xx= c(1,3), 
+                              a.Yy= c(2,4)),
+                   order.by = as.POSIXct( c("2013-10-22", 
+                                            "2014-11-13") ) )
+  data_dt <- as.data.table(data)
+  current_warn_level <- getOption("warn")
+  options(warn = 2)
+  tryCatch( data_dt[, new_col := xx+yy],
+       finally = {
+         options(warn = current_warn_level)
+       })
+})
+
 test_that("getDTSymbols returns getSymbols as data.table with IDate",{
   symbol <- "VUSUX"
   actual <- getDTSymbols(symbol)

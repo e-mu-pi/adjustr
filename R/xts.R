@@ -71,7 +71,7 @@ as.data.table.xts <- function(x) {
       dplyr::mutate(price_type = decapitalize(price_type) )
     #xts may have inserted NA to get matching index; remove that here
     dt <- dt[, .SD[(!all(is.na(value)))], by = c("index", "symbol")] %>%
-      tidyr::spread(price_type, value)
+      tidyr::spread(price_type, value) %>% data.table::copy()
     setorder(dt, symbol, index)
   }
   dt
