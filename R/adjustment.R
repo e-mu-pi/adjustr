@@ -35,7 +35,7 @@ getDTSymbols <- function(x, ...) {
 #' 
 #' TODO: Need to make sure it works when there is a split or dividend on a date with no price.
 #' @export
-raw_value <- function(price_data, dividend, ..., splits) {
+make_raw_value <- function(price_data, dividend, ..., splits) {
   is_xts <- xts::is.xts(price_data)
   if( is_xts ) {
     xts_attr <- xts::xtsAttributes(price_data)
@@ -179,7 +179,7 @@ raw_value <- function(price_data, dividend, ..., splits) {
 #' plus dividends. Those dividends are not included in the basis for the following day.
 #' 
 #' @export
-raw_return <- function(x, ...) UseMethod("raw_return")
+make_raw_return <- function(x, ...) UseMethod("make_raw_return")
 
 #' Compute raw return from split adjusted shares, dividends, and closing prices.
 #' 
@@ -197,7 +197,7 @@ raw_return <- function(x, ...) UseMethod("raw_return")
 #'   have been announced historically. The values returned from Yahoo are split adjusted. 
 #'   For example, a dividend of 0.2 that occured before a 2:1 split would be reported as
 #'   0.1 by Yahoo (assuming no subsequent splits). This function expects the 0.2. Available
-#'   as \code{rawdividend} as returned by \code{raw_value}.
+#'   as \code{rawdividend} as returned by \code{make_raw_value}.
 #' @param close The historical closing prices with no adjustments.
 #' @param initial_rawclose Optional starting value to measure returns against. Default is
 #' NULL, i.e., just use the first ticks from the other data vectors. If used, the first 
@@ -207,7 +207,7 @@ raw_return <- function(x, ...) UseMethod("raw_return")
 #' the first close including dividends.
 #' 
 #' @export
-raw_return.default <- function(split_adjusted_shares, split_unadjusted_dividends, close, 
+make_raw_return.default <- function(split_adjusted_shares, split_unadjusted_dividends, close, 
                                 initial_rawclose = NULL) {
   rawclose <- split_adjusted_shares * close
   if( is.null(initial_rawclose) ) {
@@ -221,7 +221,7 @@ raw_return.default <- function(split_adjusted_shares, split_unadjusted_dividends
 }
 
 #' @export
-raw_return.xts <- function(raw_value_xts, period = 'monthly') {
+make_raw_return.xts <- function(raw_value_xts, period = 'monthly') {
   period_opts <- list(daily = "days", weekly = "weeks", monthly = "months", 
                       quarterly = "quarters", yearly = "years", annually = "years")
   end_points <- xts::endpoints( index(raw_value_xts), 
@@ -229,7 +229,7 @@ raw_return.xts <- function(raw_value_xts, period = 'monthly') {
   end_points <- end_points[-1] #drop initial 0
   if( ! 1 %in% end_points ) end_points <- c(1, end_points)
   n <- length(end_points)
-  raw_ret_dt <- raw_return( as.data.table(raw_value_xts), 
+  raw_ret_dt <- make_raw_return( as.data.table(raw_value_xts), 
                        start = end_points[-n],
                        end = end_points[-1] )
   if ( period == 'daily' ) {
@@ -241,7 +241,7 @@ raw_return.xts <- function(raw_value_xts, period = 'monthly') {
     # dt version gives intermediate returns between start and end
     # to match quantmod, only return the values at endpoints
     # end_points[-1]: remove initial starting point
-    # -1: indexing is off by 1 because raw_return will not have a return on the
+    # -1: indexing is off by 1 because make_raw_return will not have a return on the
     # first tick
     raw_ret <- as.xts( raw_ret_dt[end_points[-1]-1,] ) 
   }
@@ -250,7 +250,7 @@ raw_return.xts <- function(raw_value_xts, period = 'monthly') {
 } 
 
 #' @export
-raw_return.data.table <- function(raw_value_data, start, end) {
+make_raw_return.data.table <- function(raw_value_data, start, end) {
 
   n_intervals <- length(end)
   n <- nrow(raw_value_data)
@@ -281,14 +281,14 @@ raw_return.data.table <- function(raw_value_data, start, end) {
       overlapped_dividends[idx] <- raw_value_data[(start_index[idx]+1):end_index[idx],
                                                    sum(rawdividend * rawshares / last(rawshares) )]
     }
-    raw_ret <- raw_value_data[(on_period),  list(rawreturn = raw_return(last(rawshares), 
+    raw_ret <- raw_value_data[(on_period),  list(rawreturn = make_raw_return(last(rawshares), 
                                                       overlapped_dividends[.GRP], 
                                                       last(close), 
                                                       initial_rawclose[.GRP]) ), 
                                by = period_index]
   } else {
     raw_ret <- raw_value_data[(on_period), 
-                               list(rawreturn = raw_return(rawshares, 
+                               list(rawreturn = make_raw_return(rawshares, 
                                                             rawdividend, 
                                                             close, 
                                                             initial_rawclose[.GRP])), 
@@ -333,12 +333,12 @@ raw_return.data.table <- function(raw_value_data, start, end) {
 #' account for splits (e.g., if you start with 1 share and there is a 2:1 split, you should
 #' have 2 shares after the split).
 #' @param unadjusted_dividends A numeric vector of dividends paid. These should not be adjusted
-#' for splits. Yahoo adjusts their dividends for splits. The raw_value function can create
+#' for splits. Yahoo adjusts their dividends for splits. The make_raw_value function can create
 #' raw dividends (i.e., undo the split adjustment).
 #' 
 #' @return A numeric vector of shares after splits and reinvestment of dividends.
 #' 
 #' @export
-reinvested_shares <- function(close, split_adjusted_shares, unadjusted_dividends) {
+make_reinvested_shares <- function(close, split_adjusted_shares, unadjusted_dividends) {
   split_adjusted_shares*cumprod(1+unadjusted_dividends/c(Inf,close[-length(close)]))
 }
