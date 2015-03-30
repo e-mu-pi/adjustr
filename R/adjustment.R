@@ -9,8 +9,7 @@ NULL
 #' @export
 getDTSymbols <- function(x, ...) {
   getSymbols <- quantmod::getSymbols # getSymbols doesn't expect to see the 
-  # package name when it retrieves its
-  # defaults (gives a warning)
+  # package name when it retrieves its defaults (gives a warning).
   # Do this rather than importing getSymbols.
   data <- getSymbols(x, ...)
   as.data.table(data)
@@ -34,13 +33,14 @@ make_shares <- function(splits) {
 #' 
 #' @param split_adjusted_dividend A numeric vector of split adjusted dividends.
 #' @param splits A numeric vector of splits.
+#' @param max_decimals The number of decimal places that unadjusted dividends may have.
 #' @return A numeric vector of unadjusted dividends.
 #' 
 #' @export
-unadjust <- function(split_adjusted_dividend, splits) {
+unadjust <- function(split_adjusted_dividend, splits, max_decimals = 3) {
   shares <- make_shares(splits)
   n <- length(shares)
-  split_adjusted_dividend * shares / shares[n]
+  round(split_adjusted_dividend * shares[n] / shares, digits = max_decimals)
 }
 
 #' Make additive price adjustments without lookforward bias.

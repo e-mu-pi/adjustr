@@ -10,7 +10,7 @@ make_data_table <- function(string_table) {
 
 test_that("make_shares turns splits into the evolution of 1 share",{
   splits <- c(1,0.5,1,4,1)
-  expecte_that( make_shares(splits),
+  expect_that( make_shares(splits),
                  equals( c(1,2,2,0.5,0.5) ) )
 })
 
@@ -46,7 +46,9 @@ test_that("unadjust.default removes split adjustment from dividends",{
 #   expect_that( unadjust(too_many_decimals, splits, closing_price_with_split),
   expect_that( unadjust(too_many_decimals, splits),
                equals(dividend) )
-  
+  expect_that( unadjust(too_many_decimals, splits, max_decimals = 4),
+              equals(2 * too_many_decimals) )
+
   more_dividends <- c(0.45, 0, 0.444, 0, 0.45)
   more_splits <- c(1,0.5,1,4,1)
   
