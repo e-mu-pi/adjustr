@@ -66,9 +66,24 @@ unadjust.data.table <- function(split_adjusted_dividend, splits, ...) {
   stopifnot( is.data.table(splits), 
              all( c('index', 'dividend') %in% names(split_adjusted_dividend) ),
              all( c('index', 'splits') %in% names(splits) ) )
-  merged_data <- merge(split_adjusted_dividend, splits, by = 'index', all = TRUE)
-  merged_data[ is.na(splits), splits := 1]
-  merged_data[ is.na(dividend), dividend := 0]
+  just_splits <- all( names(splits) %in% c('index', 'splits') )
+  just_dividends <- all( names(split_adjusted_dividend) %in% c('index', 'dividend') )
+  
+  div_not_subset_splits <- ! all( split_adjusted_dividend[, index] %in% splits[, index] )
+  splits_not_subset_div <- ! all( splits[,index] %in% split_adjusted_dividend[, index] )
+  
+  if( splits_not_subset_div && ! just_dividends ) {
+    stop("unadjust can't fill non-dividend columns when merging with splits")
+  } else if( div_not_subset_splits && ! just_splits ) {
+    stop("unadjust can't fill non-split columns when merging with dividends")
+  } else  { #if( div_not_subset_splits || splits_not_subset_div ) {
+    merged_data <- merge(split_adjusted_dividend, splits, by = 'index', all = TRUE)
+    merged_data[ is.na(splits), splits := 1]
+    merged_data[ is.na(dividend), dividend := 0]
+  } 
+#   else { # splits and dividends must have the same index 
+#     merged_data
+#   }
   merged_data[, shares := make_shares(splits)]
   merged_data[, unadjusted_dividend := unadjust(dividend, splits, ...)]
 }
@@ -87,36 +102,84 @@ unadjust.data.table <- function(split_adjusted_dividend, splits, ...) {
 #' 
 #' @export
 unadjust.xts <- function(split_adjusted_dividend, splits, ...) {
+  if( all(is.na(splits)) ) { #NA to support quantmod::getSplits 
+    splits <- xts::xts( numeric(), as.Date( as.character(), tz = 'UTC'))
+  }
   stopifnot( xts::is.xts(splits), 
              ncol(split_adjusted_dividend) ==1 || 
-               grepl("dividend", colnames(split_adjusted_dividend)),
+               any(grepl("dividend", colnames(split_adjusted_dividend),
+                         ignore.case = TRUE)),
              ncol(splits) == 1 ||
-               grepl("spl", colnames(splits) ) )
+               any( grepl("spl", colnames(splits), ignore.case = TRUE ) ) )
   if( ncol(splits) == 1 ) {
     split_col <- colnames(splits) 
   } else {
-    split_col <- colnames(splits)[ grepl("spl", colnames(splits))]
+    split_col <- colnames(splits)[ grepl("spl", colnames(splits), ignore.case = TRUE)]
   }
   if( ncol(split_adjusted_dividend) == 1) {
     dividend_col <- colnames(split_adjusted_dividend)
   } else {
     dividend_col <- colnames(split_adjusted_dividend)[ grepl("dividend", 
-                                          colnames(split_adjusted_dividend))]
+                                          colnames(split_adjusted_dividend), 
+                                          ignore.case = TRUE)]
   }
-  if( ! identical(index(splits), index(split_adjusted_dividend) ) ) {
-    merged_data <- xts::merge.xts(split_adjusted_dividend, splits, fill = 0)
-    merged_data[ merged_data[,"splits"] ==0, "splits"] <- 1
+  if( is.null(dividend_col) ) { #the case for quantmod::getDividends
+    colnames(split_adjusted_dividend) <- "dividend"
+    dividend_col <- "dividend"
+  }
+  if( is.null(split_col) ) { #not a real issue, but to fully support 1 column split xts
+    colnames(splits) <- "splits"
+    split_col <- "splits"
+  }
+  if( nrow(splits) == 0 && nrow(split_adjusted_dividend) == 0 ) {
+    merged_data <- xts::xts( data.frame( dividend = numeric(),
+                                         splits = numeric(),
+                                         shares = numeric(),
+                                         unadjusted_dividend = numeric() ),
+                             order.by = as.Date( as.character(), tz = 'UTC') )
   } else {
-    merged_data <- cbind(split_adjusted_dividend, splits)
+    just_splits <- all( colnames(splits) %in% split_col )
+    just_dividends <- all( colnames(split_adjusted_dividend) %in% dividend_col )
+    
+    div_not_subset_splits <- ! all( zoo::index(split_adjusted_dividend) %in% 
+                                      zoo::index(splits) )
+    splits_not_subset_div <- ! all( zoo::index(splits) %in% 
+                                      zoo::index(split_adjusted_dividend) )
+    
+    if( splits_not_subset_div && ! just_dividends ) {
+      stop("unadjust can't fill non-dividend columns when merging with splits")
+    } else if( div_not_subset_splits && ! just_splits ) {
+      stop("unadjust can't fill non-split columns when merging with dividends")
+    } else  { #if( div_not_subset_splits || splits_not_subset_div ) {
+        
+      if( ! identical( zoo::index(splits), zoo::index(split_adjusted_dividend) ) ) {
+        merged_data <- xts::merge.xts(split_adjusted_dividend, splits, fill = 0)
+        n <- length(merged_data)
+        if( ! dividend_col %in% colnames(merged_data) ) {
+          merged_data <- cbind( xts::xts( data.frame( dividend = rep_len(0, n) ),
+                                          order.by = zoo::index(merged_data) ),
+                                merged_data)
+        }
+        if( ! split_col %in% colnames(merged_data) ) {
+          merged_data <- cbind( merged_data,
+                                xts::xts( data.frame( splits = rep_len(1, n) ),
+                                          order.by = zoo::index(merged_data) ) )
+        } else {
+          merged_data[ merged_data[,split_col] ==0, split_col] <- 1
+        }
+      } else {
+        merged_data <- cbind(split_adjusted_dividend, splits)
+      }
+      merged_data$shares <- xts::xts( make_shares( 
+                                        as.numeric(merged_data[,split_col] ) ),
+                                      order.by = zoo::index(merged_data) )
+      merged_data$unadjusted_dividend <- 
+        xts::xts( unadjust( as.numeric( merged_data[,dividend_col]), 
+                            as.numeric( merged_data[,split_col]), 
+                            ...),
+                  order.by = zoo::index(merged_data) )
+    }
   }
-  merged_data$shares <- xts::xts( make_shares( 
-                                    as.numeric(merged_data[,split_col] ) ),
-                                  order.by = zoo::index(merged_data) )
-  merged_data$unadjusted_dividend <- 
-    xts::xts( unadjust( as.numeric( merged_data[,dividend_col]), 
-                        as.numeric( merged_data[,split_col]), 
-                        ...),
-              order.by = zoo::index(merged_data) )
   merged_data
 }
 

@@ -71,6 +71,8 @@ test_that("unadjust.data.table removes split adjustment from dividends",{
                equals( expected[, unadjust(dividend, splits)] ) )
   expect_that( unadjust(dividend, splits),
                equals( expected ) )
+  expect_that( expected[, unadjusted_dividend * shares / last(shares)],
+               equals( expected[,dividend]) )
   
   dividend[1, dividend := 0.455]
   expected[1, dividend := 0.455]
@@ -114,13 +116,106 @@ test_that("unadjust.xts removes split adjustment from dividends",{
 })
 
 test_that("unadjust works with extraneous columns",{
-  expect_that(TRUE,
-              equals(FALSE))
+  price_data <- make_data_table("index symbol close  splits
+                                2015-03-16 SYM 55.94 1
+                                2015-03-17 SYM 28.63 0.5
+                                2015-03-18 SYM  28.24 1
+                                2015-03-19 SYM 113.01 4
+                                2015-03-20 SYM 113.14 1")
+#   splits <- make_data_table("index split
+#                             2015-03-17 0.5
+#                             2015-03-19 4")
+  dividend <- make_data_table("index dividend
+                              2015-03-16 0.45
+                              2015-03-18 0.444
+                              2015-03-20 0.45")
+  expected <- copy(price_data)
+  expected <- expected[, dividend := c(0.45, 0, 0.444, 0, 0.45)]
+  expected[, shares := make_shares(splits)]
+  expected[, unadjusted_dividend := unadjust(dividend, splits)]
+  usual_order <- c("index", "symbol", "close", "dividend", 
+                   "splits", "shares", "unadjusted_dividend")
+  setcolorder(expected, usual_order)
+  setkey(expected, index)
+
+  dividend_first <- c("index","dividend",
+                      names(expected)[ ! names(expected) %in% c("index", "dividend")])
+  expect_that( unadjust( dividend, price_data),
+               equals( expected[, dividend_first, with = FALSE] ))
+  expect_that( unadjust( expected[,c("index","symbol", "close", "dividend"), with = FALSE],
+                         price_data[(splits != 1),c("index", "splits"), with = FALSE]),
+               equals(expected) )
+
+  cant_fill_dividend <- copy(dividend)
+  cant_fill_dividend[, symbol := "SYM"]
+  expect_that( unadjust( cant_fill_dividend, price_data),
+               throws_error("can't fill non-dividend columns") )
+
+  cant_fill_splits <- copy(dividend)
+  cant_fill_splits[, index := as.Date( "2015-03-15", "2015-03-18", "2015-03-21")]
+  expect_that( unadjust( cant_fill_splits, price_data),
+             throws_error("can't fill non-split columns") )
+
+  dividend_xts <- as.xts(dividend)
+  price_data_xts <- as.xts( dplyr::select(price_data, -symbol) )
+  expected_xts <- as.xts( dplyr::select( expected, -symbol ) )
+
+  dividend_first <- c("dividend", "close", "splits", 
+                      "shares", "unadjusted_dividend")
+  expect_that( unadjust( dividend_xts, price_data_xts),
+               equals( expected_xts[, dividend_first] ))
+  nontrivial_splits <- price_data_xts[,"splits"] != 1
+  expect_that( unadjust( expected_xts[,c("index","symbol", "close", "dividend")],
+                         price_data_xts[nontrivial_splits,c("index", "splits")]),
+               equals(expected_xts) )
+  
+  cant_fill_dividend_xts <- copy(dividend)
+  cant_fill_dividend_xts[, extra := 5] # rather than symbol used in data.table test, use numeric because xts
+  cant_fill_dividend_xts <- as.xts(cant_fill_dividend_xts)
+  expect_that( unadjust( cant_fill_dividend_xts, price_data_xts),
+               throws_error("can't fill non-dividend columns") )
+  
+#   cant_fill_splits_xts <- copy(dividend)
+#   cant_fill_splits_xts[, index := as.Date( "2015-03-15", "2015-03-18", "2015-03-21")]
+  cant_fill_splits_xts <- as.xts(cant_fill_splits)
+  expect_that( unadjust( cant_fill_splits_xts, price_data_xts),
+               throws_error("can't fill non-split columns") )
+
 })
 
-test_that("unadjust works with empty outputs from quantmod",{
-  expect_that(TRUE,
-              equals(FALSE))
+test_that("unadjust works with outputs from quantmod",{
+  dividends <- xts( 0.25, order.by = as.Date('2015-02-22', tz = 'UTC') )
+  splits <- xts( data.frame(SYM.spl = 0.5), order.by = as.Date("2015-03-01", tz = 'UTC') )
+  
+  expected <- xts( data.frame( 
+    dividend = c(0.25, 0),
+    SYM.spl = c(1, 0.5),
+    shares = c(1, 2),
+    unadjusted_dividend = c(0.5, 0) ),
+    order.by = as.Date(c('2015-02-22', '2015-03-01'), tz = 'UTC') )
+  
+  expect_that( unadjust(dividends, splits),
+              equals( expected ) )
+  
+  empty_dividends <- xts( numeric(), order.by = as.Date(as.character()) )
+  expected_no_dividends <- expected[2,]
+  expect_that( unadjust( empty_dividends, splits),
+               equals( expected_no_dividends) )
+  
+  empty_splits <- as.logical(NA)
+  expected_no_splits <- expected[1,]
+  expected_no_splits[1,"unadjusted_dividend"] <- as.numeric(dividends[1,])
+  colnames(expected_no_splits)[2] <- "splits"
+  expect_that( unadjust( dividends, empty_splits),
+               equals( expected_no_splits) )
+  
+  expect_that( unadjust( empty_dividends, empty_splits),
+               is_identical_to( xts( data.frame( dividend = numeric(),
+                                        splits = numeric(),
+                                        shares = numeric(),
+                                        unadjusted_dividend = numeric() ),
+                            order.by = as.Date(as.character(), tz = 'UTC') ) ) )
+  
 })
 
 test_that("make_raw_value adds dividend values into price data",{
