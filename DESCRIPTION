@@ -1,0 +1,20 @@
+Package: adjustr
+Type: Package
+Title: (Un)Adjust Financial Data for Splits and Dividends
+Version: 0.1.0
+Date: 2015-03-13
+Author: EMP <e-mu-pi@users.noreply.github.com>
+Maintainer: EMP <e-mu-pi@users.noreply.github.com>
+Description: Provide alternative split and dividend adjustments to the standard dividend adjustment provided by quantmod/Yahoo.
+License: file LICENSE
+Imports:
+  quantmod (>= 0.4-4),
+  data.table (>= 1.9.4),
+  dplyr (>= 0.4.1),
+  reshape2 (>= 1.4),
+  tidyr (>= 0.1),
+  TTR (>= 0.22-0),
+  xts (>= 0.9-7),
+  zoo (>= 1.7-11)
+Suggests:
+  testthat
