@@ -27,9 +27,13 @@ make_shares <- function(splits) {
   cumprod(1/splits)
 }
 
+#' @export
+unadjust <- function(split_adjusted_dividend, splits, ...) UseMethod('unadjust')
+
 #' Turn split adjusted dividends into unadjusted dividends.
 #' 
-#' Assumes that unadjusted dividends are only accurate to 3 decimal places.
+#' Assumes that unadjusted dividends are only accurate to 3 decimal places
+#' unless \code{max_decimals} specifies otherwise.
 #' 
 #' @param split_adjusted_dividend A numeric vector of split adjusted dividends.
 #' @param splits A numeric vector of splits.
@@ -37,11 +41,38 @@ make_shares <- function(splits) {
 #' @return A numeric vector of unadjusted dividends.
 #' 
 #' @export
-unadjust <- function(split_adjusted_dividend, splits, max_decimals = 3) {
+unadjust.default <- function(split_adjusted_dividend, splits, max_decimals = 3) {
+  n <- length(splits)
+  stopifnot( n == length(split_adjusted_dividend) )
   shares <- make_shares(splits)
-  n <- length(shares)
   round(split_adjusted_dividend * shares[n] / shares, digits = max_decimals)
 }
+
+#' Turn split adjusted dividends into unadjusted dividends.
+#' 
+#' Assumes that unadjusted dividends are only accurate to 3 decimal places
+#' unless \code{max_decimals} specifies otherwise.
+#' 
+#' @param split_adjusted_dividend A data.table of with a \code{dividend} column and
+#' an \code{index} column to merge on. 
+#' @param splits A \code{data.table} of with columns \code{splits} and \code{index}.
+#' @param ... Additional arguments passed to unadjust.default, for example, \code{max_decimals}.
+#' @return A data.table of merged splits and dividends with new fields \code{shares}
+#' and {unadjusted_dividend}. The merge matches on the \code{index} field. Missing
+#  splits are filled in with 1. Missing dividends are filled in with 0.
+#' 
+#' @export
+unadjust.data.table <- function(split_adjusted_dividend, splits, ...) {
+  stopifnot( is.data.table(splits), 
+             all( c('index', 'dividend') %in% names(split_adjusted_dividend) ),
+             all( c('index', 'splits') %in% names(splits) ) )
+  merged_data <- merge(split_adjusted_dividend, splits, by = 'index', all = TRUE)
+  merged_data[ is.na(splits), splits := 1]
+  merged_data[ is.na(dividend), dividend := 0]
+  merged_data[, shares := make_shares(splits)]
+  merged_data[, unadjusted_dividend := unadjust(dividend, splits, ...)]
+}
+
 
 #' Make additive price adjustments without lookforward bias.
 #' 
