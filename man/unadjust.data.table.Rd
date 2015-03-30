@@ -7,16 +7,16 @@
 \method{unadjust}{data.table}(split_adjusted_dividend, splits, ...)
 }
 \arguments{
-\item{split_adjusted_dividend}{A data.table of with a \code{dividend} column and
+\item{split_adjusted_dividend}{A \code{data.table} with a \code{dividend} column and
 an \code{index} column to merge on.}
 
-\item{splits}{A \code{data.table} of with columns \code{splits} and \code{index}.}
+\item{splits}{A \code{data.table} with columns \code{splits} and \code{index}.}
 
-\item{...}{Additional arguments passed to unadjust.default, for example, \code{max_decimals}.}
+\item{...}{Additional arguments passed to \code{unadjust.default}, for example, \code{max_decimals}.}
 }
 \value{
-A data.table of merged splits and dividends with new fields \code{shares}
-and {unadjusted_dividend}. The merge matches on the \code{index} field. Missing
+A \code{data.table} of merged splits and dividends with new fields \code{shares}
+and \code{unadjusted_dividend}. The merge matches on the \code{index} field. Missing
 }
 \description{
 Assumes that unadjusted dividends are only accurate to 3 decimal places

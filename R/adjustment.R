@@ -53,12 +53,12 @@ unadjust.default <- function(split_adjusted_dividend, splits, max_decimals = 3) 
 #' Assumes that unadjusted dividends are only accurate to 3 decimal places
 #' unless \code{max_decimals} specifies otherwise.
 #' 
-#' @param split_adjusted_dividend A data.table of with a \code{dividend} column and
+#' @param split_adjusted_dividend A \code{data.table} with a \code{dividend} column and
 #' an \code{index} column to merge on. 
-#' @param splits A \code{data.table} of with columns \code{splits} and \code{index}.
-#' @param ... Additional arguments passed to unadjust.default, for example, \code{max_decimals}.
-#' @return A data.table of merged splits and dividends with new fields \code{shares}
-#' and {unadjusted_dividend}. The merge matches on the \code{index} field. Missing
+#' @param splits A \code{data.table} with columns \code{splits} and \code{index}.
+#' @param ... Additional arguments passed to \code{unadjust.default}, for example, \code{max_decimals}.
+#' @return A \code{data.table} of merged splits and dividends with new fields \code{shares}
+#' and \code{unadjusted_dividend}. The merge matches on the \code{index} field. Missing
 #  splits are filled in with 1. Missing dividends are filled in with 0.
 #' 
 #' @export
@@ -73,6 +73,52 @@ unadjust.data.table <- function(split_adjusted_dividend, splits, ...) {
   merged_data[, unadjusted_dividend := unadjust(dividend, splits, ...)]
 }
 
+#' Turn split adjusted dividends into unadjusted dividends.
+#' 
+#' Assumes that unadjusted dividends are only accurate to 3 decimal places
+#' unless \code{max_decimals} specifies otherwise.
+#' 
+#' @param split_adjusted_dividend An \code{xts} of dividends, either 1 column or with a column name
+#' matching dividend.
+#' @param splits An \code{xts} of splits, either 1 column or with a column \code{spl}.
+#' @param ... Additional arguments passed to unadjust.default, for example, \code{max_decimals}.
+#' @return An \code{xts} of merged splits and dividends with new fields \code{shares}
+#' and \code{unadjusted_dividend}. Missing splits are filled in with 1. Missing dividends are filled in with 0.
+#' 
+#' @export
+unadjust.xts <- function(split_adjusted_dividend, splits, ...) {
+  stopifnot( xts::is.xts(splits), 
+             ncol(split_adjusted_dividend) ==1 || 
+               grepl("dividend", colnames(split_adjusted_dividend)),
+             ncol(splits) == 1 ||
+               grepl("spl", colnames(splits) ) )
+  if( ncol(splits) == 1 ) {
+    split_col <- colnames(splits) 
+  } else {
+    split_col <- colnames(splits)[ grepl("spl", colnames(splits))]
+  }
+  if( ncol(split_adjusted_dividend) == 1) {
+    dividend_col <- colnames(split_adjusted_dividend)
+  } else {
+    dividend_col <- colnames(split_adjusted_dividend)[ grepl("dividend", 
+                                          colnames(split_adjusted_dividend))]
+  }
+  if( ! identical(index(splits), index(split_adjusted_dividend) ) ) {
+    merged_data <- xts::merge.xts(split_adjusted_dividend, splits, fill = 0)
+    merged_data[ merged_data[,"splits"] ==0, "splits"] <- 1
+  } else {
+    merged_data <- cbind(split_adjusted_dividend, splits)
+  }
+  merged_data$shares <- xts::xts( make_shares( 
+                                    as.numeric(merged_data[,split_col] ) ),
+                                  order.by = zoo::index(merged_data) )
+  merged_data$unadjusted_dividend <- 
+    xts::xts( unadjust( as.numeric( merged_data[,dividend_col]), 
+                        as.numeric( merged_data[,split_col]), 
+                        ...),
+              order.by = zoo::index(merged_data) )
+  merged_data
+}
 
 #' Make additive price adjustments without lookforward bias.
 #' 

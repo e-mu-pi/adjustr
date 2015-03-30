@@ -80,15 +80,48 @@ test_that("unadjust.data.table removes split adjustment from dividends",{
   expected[1, unadjusted_dividend := 0.2275]
   expect_that( unadjust(dividend, splits, max_decimals = 4),
                equals(expected) )
-  expect_that
 })
 
-# test_that("unadjust.xts removes split adjustment from dividends",{
-#   unadjusted_data <- unadjust(dividend, splits)
-#   #unadjusted_dividend, dividend, split, shares
-#   expect_that( TRUE,
-#                equals(FALSE) )
-# })
+test_that("unadjust.xts removes split adjustment from dividends",{
+  splits <- make_data_table("index splits
+                          2015-03-17 0.5
+                          2015-03-19 4")
+  dividend <- make_data_table("index dividend
+                              2015-03-16 0.45
+                              2015-03-18 0.444
+                              2015-03-20 0.45")
+  expected <- make_data_table("index        dividend splits shares unadjusted_dividend
+                              2015-03-16  0.45      1     1      0.225
+                              2015-03-17  0         0.5   2      0
+                              2015-03-18    0.444     1     2      0.111
+                              2015-03-19    0         4     0.5    0
+                              2015-03-20    0.45      1     0.5    0.45")
+  dividend <- as.xts(dividend)
+  splits <- as.xts(splits)
+  expected <- as.xts(expected)
+  
+  expect_that( unadjust(dividend, splits),
+               equals( expected ) )
+  
+  dividend[1, "dividend"] <- 0.455
+  expected[1, "dividend"] <- 0.455
+  expected[1, "unadjusted_dividend"] <- 0.228
+  expect_that( unadjust(dividend, splits),
+               equals(expected) )
+  expected[1, "unadjusted_dividend"] <- 0.2275
+  expect_that( unadjust(dividend, splits, max_decimals = 4),
+               equals(expected) )
+})
+
+test_that("unadjust works with extraneous columns",{
+  expect_that(TRUE,
+              equals(FALSE))
+})
+
+test_that("unadjust works with empty outputs from quantmod",{
+  expect_that(TRUE,
+              equals(FALSE))
+})
 
 test_that("make_raw_value adds dividend values into price data",{
   price_data <- make_data_table("index symbol high close
