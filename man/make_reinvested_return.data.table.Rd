@@ -4,7 +4,8 @@
 \alias{make_reinvested_return.data.table}
 \title{Compute reinvested return between start and end.}
 \usage{
-\method{make_reinvested_return}{data.table}(price_data, start, end)
+\method{make_reinvested_return}{data.table}(price_data, start = 1,
+  end = nrow(price_data), ...)
 }
 \arguments{
 \item{price_data}{A data.frame of prices as produced by make_raw_data. In particular,
@@ -13,6 +14,8 @@ requires columns index, close, rawshares, and rawdividend.}
 \item{start}{An index vector (numeric or logical) of starting points.}
 
 \item{end}{An index vector (numeric or logical) of ending poitns.}
+
+\item{...}{Additional arguments.}
 }
 \value{
 A data.frame of reinvested returns with columns index and reinvested_return.

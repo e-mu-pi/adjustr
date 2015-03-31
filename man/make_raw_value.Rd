@@ -6,6 +6,22 @@
 \usage{
 make_raw_value(price_data, dividend, ..., splits)
 }
+\arguments{
+\item{price_data}{Price data for which to compute raw value. Currently in a confused state
+where \code{data.table} and \code{xts} are both accepted.}
+
+\item{dividend}{Split unadjusted dividends as provided by Yahoo, either as \code{data.table}
+or \code{xts}.}
+
+\item{...}{Not sure yet.}
+
+\item{splits}{Splits as provided by Yahoo, either as \code{data.table}
+    or \code{xts}.}
+}
+\value{
+A \code{data.table} unless an \code{xts} was passed in containing new
+    columns with dividend, splits, rawshares, rawdividend, and rawvalue.
+}
 \description{
 Apply dividend and split data to price series without changing
 past data. Changes are applied additively, perhaps multiplicative

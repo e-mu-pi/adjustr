@@ -4,12 +4,15 @@
 \alias{unadjust.default}
 \title{Turn split adjusted dividends into unadjusted dividends.}
 \usage{
-\method{unadjust}{default}(split_adjusted_dividend, splits, max_decimals = 3)
+\method{unadjust}{default}(split_adjusted_dividend, splits, ...,
+  max_decimals = 3)
 }
 \arguments{
 \item{split_adjusted_dividend}{A numeric vector of split adjusted dividends.}
 
 \item{splits}{A numeric vector of splits.}
+
+\item{...}{Additional arguments.}
 
 \item{max_decimals}{The number of decimal places that unadjusted dividends may have.}
 }

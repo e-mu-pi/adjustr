@@ -4,10 +4,12 @@
 \alias{make_raw_return.default}
 \title{Compute raw return from split adjusted shares, dividends, and closing prices.}
 \usage{
-\method{make_raw_return}{default}(split_adjusted_shares,
-  split_unadjusted_dividends, close, initial_rawclose = NULL)
+\method{make_raw_return}{default}(price_data, split_adjusted_shares,
+  split_unadjusted_dividends, initial_rawclose = NULL, ...)
 }
 \arguments{
+\item{price_data}{The historical prices, usually closes, with no adjustments.}
+
 \item{split_adjusted_shares}{Numeric vector of number of shares accounting
 for share splits. Typically, starts with 1 and adjusts for each split to reflect what
 that 1 share has become.}
@@ -18,11 +20,11 @@ For example, a dividend of 0.2 that occured before a 2:1 split would be reported
 0.1 by Yahoo (assuming no subsequent splits). This function expects the 0.2. Available
 as \code{rawdividend} as returned by \code{make_raw_value}.}
 
-\item{close}{The historical closing prices with no adjustments.}
-
 \item{initial_rawclose}{Optional starting value to measure returns against. Default is
 NULL, i.e., just use the first ticks from the other data vectors. If used, the first
 dividend will be included.}
+
+\item{...}{Additional arguments currently unused.}
 }
 \value{
 A numeric vector the same length as the inputs with the arithmetic return from
@@ -34,6 +36,6 @@ and exiting at any intermediate closing price including splits and dividends. Th
 number of shares should only change based on splits; no accounting is done to rebase
 the return for other purchases and sales of shares. The dividends must be as they would
 historically have been reported, not split adjusted as Yahoo provides. A dividend on
-the first tick is not included as Yahoo reports them on the ex-date.
+the first tick is not included in the return as Yahoo reports them on the ex-date.
 }
 

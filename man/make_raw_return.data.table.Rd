@@ -4,17 +4,21 @@
 \alias{make_raw_return.data.table}
 \title{Compute raw return between start and end.}
 \usage{
-\method{make_raw_return}{data.table}(raw_value_data, start, end)
+\method{make_raw_return}{data.table}(price_data, start = 1,
+  end = nrow(price_data), ...)
 }
 \arguments{
-\item{raw_value_data}{A data.frame of raw_value data as produced by make_raw_data.}
+\item{price_data}{A \code{data.table} of price data as produced by \code{make_raw_data}.
+In particular, it must have columns \code{close, rawshares, rawdividend}.}
 
 \item{start}{An index vector (numeric or logical) of starting points.}
 
 \item{end}{An index vector (numeric or logical) of ending poitns.}
+
+\item{...}{Additional arguments.}
 }
 \value{
-A data.frame of raw returns with columns index and rawreturn.
+A \code{data.table} of raw returns with columns index and rawreturn.
 If the (start,end] ranges do not overlap, the returns are a running calculation from
 each start indexed from start+1 to end. If there the (start,end] ranges do not partition
 the index of the input, the missing indexes are omitted (especially useful when looking

@@ -6,6 +6,14 @@
 \usage{
 getDTSymbols(x, ...)
 }
+\arguments{
+\item{x}{A symbol or list of symbols to retrieve from Yahoo and adjust.}
+
+\item{...}{Additional arguments passed to quantmod::getSymbols.}
+}
+\value{
+A \code{data.table} of data for input symbols with adjustments.
+}
 \description{
 \code{getDTSymbols} adapts \code{quantmod::getSymbols} to convert
 results to \code{data.table}.

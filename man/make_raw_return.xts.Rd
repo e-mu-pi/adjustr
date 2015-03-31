@@ -4,13 +4,15 @@
 \alias{make_raw_return.xts}
 \title{Compute period returns as value change plus dividends.}
 \usage{
-\method{make_raw_return}{xts}(raw_value_xts, period = "monthly")
+\method{make_raw_return}{xts}(price_data, period = "monthly", ...)
 }
 \arguments{
-\item{raw_value_xts}{An \code{xts} object with columns \code{close, rawshares, rawdividend}
+\item{price_data}{An \code{xts} object with columns \code{close, rawshares, rawdividend}
 or with a symbol \code{SYM}, columns \code{SYM.Close, SYM.Rawshares, SYM.Rawdividend}.}
 
 \item{period}{A string indicating a granularity. See quantmod::periodReturn.}
+
+\item{...}{Additional arguments.}
 }
 \value{
 An \code{xts} object ordered by the \code{index} column granulated to period. The

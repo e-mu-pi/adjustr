@@ -517,9 +517,9 @@ test_that("make_raw_return.default computes rawclose to rawclose plus properly a
   expect_that( data.table::setkey(all_prices, index), 
                equals(raw_prices) )
   
-  whole_period <- make_raw_return( raw_prices[, rawshares], 
-                               raw_prices[, rawdividend], 
-                               raw_prices[, close]) 
+  whole_period <- make_raw_return( raw_prices[, close],
+                                   raw_prices[, rawshares], 
+                                   raw_prices[, rawdividend]) 
   expect_that( whole_period[1],
                equals(0) )
   expect_that( whole_period[2],
@@ -531,15 +531,15 @@ test_that("make_raw_return.default computes rawclose to rawclose plus properly a
   expect_that( whole_period[5],
                equals( (2*(26+0.5+1.5+0.5)-50)/50 ) )
 
-  alternate_version <- make_raw_return( raw_prices[2:5, rawshares],
-                                    raw_prices[2:5, rawdividend],
-                                    raw_prices[2:5, close],
-                                    raw_prices[1, close * rawshares])
+  alternate_version <- make_raw_return( raw_prices[2:5, close],
+                                        raw_prices[2:5, rawshares],
+                                        raw_prices[2:5, rawdividend],
+                                        raw_prices[1, close * rawshares])
   expect_that( alternate_version,
                equals(whole_period[-1]) )
-  partial_period <- make_raw_return( raw_prices[2:5, rawshares], 
-                                                 raw_prices[2:5, rawdividend], 
-                                                 raw_prices[2:5, close]) 
+  partial_period <- make_raw_return( raw_prices[2:5, close],
+                                     raw_prices[2:5, rawshares], 
+                                     raw_prices[2:5, rawdividend]) 
   expect_that( partial_period[1],
                equals(0) )
   expect_that( partial_period[2],
@@ -549,12 +549,12 @@ test_that("make_raw_return.default computes rawclose to rawclose plus properly a
   expect_that( partial_period[4],
                equals( (2*(26+1.5+0.5)-52)/52 ) )
   
-  post_split <- make_raw_return( raw_prices[3:5, rawshares], 
-                                               raw_prices[3:5, rawdividend], 
-                                               raw_prices[3:5, close]) 
-  post_split_resized <- make_raw_return( c(1,1,1),
-                                     raw_prices[3:5, rawdividend],
-                                     raw_prices[3:5, close])
+  post_split <- make_raw_return( raw_prices[3:5, close],
+                                 raw_prices[3:5, rawshares], 
+                                 raw_prices[3:5, rawdividend]) 
+  post_split_resized <- make_raw_return( raw_prices[3:5, close],
+                                         c(1,1,1),
+                                     raw_prices[3:5, rawdividend])
   expect_that( post_split,
                equals(post_split_resized) )
   

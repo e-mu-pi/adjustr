@@ -4,18 +4,15 @@
 \alias{make_reinvested_return}
 \title{Compute period returns assuming reinvestment of dividends.}
 \usage{
-make_reinvested_return(x, ...)
+make_reinvested_return(price_data, ...)
 }
 \arguments{
-\item{raw_value_data}{A \code{data.table} including columns \code{index, close, rawshares, rawdividends}.
-The \code{index} column must be a valid type for \code{xts} indexing. Multi-symbol data
-is not supported.}
+\item{price_data}{Price data on which to compute returns}
 
-\item{period}{A string indicating a granularity. See quantmod::periodReturn.}
+\item{...}{Additional arguments to pass to specializations.}
 }
 \value{
-An \code{xts} object ordered by the \code{index} column granulated to period. The
-returns are calculated as close to close values multiplied by rawshares to account for
+Return data calculated as close to close values multiplied by rawshares to account for
 splits and adding in dividends over the period. Note that a dividend on date t in Yahoo
 data is only paid to those holding at the close on date t-1. Therefore, there a dividend
 on date t for which t is also the period start will be recorded in the period ending on date

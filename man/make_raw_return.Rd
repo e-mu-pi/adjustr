@@ -4,7 +4,16 @@
 \alias{make_raw_return}
 \title{Compute period returns as value change plus dividends.}
 \usage{
-make_raw_return(x, ...)
+make_raw_return(price_data, ...)
+}
+\arguments{
+\item{price_data}{Price data for which to compute raw returns.}
+
+\item{...}{Additional arguments.}
+}
+\value{
+Return data assuming shares are split according to split data
+    and dividends are paid, one for each share, but not reinvested.
 }
 \description{
 Compute period returns as value change plus dividends.

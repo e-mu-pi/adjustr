@@ -4,11 +4,11 @@
 \alias{make_reinvested_return.default}
 \title{Compute reinvested return from split adjusted shares, dividends, and closing prices.}
 \usage{
-\method{make_reinvested_return}{default}(close, split_adjusted_shares,
-  unadjusted_dividends, initial_close = NULL, initial_shares = NULL)
+\method{make_reinvested_return}{default}(price_data, split_adjusted_shares,
+  unadjusted_dividends, initial_price = NULL, initial_shares = NULL, ...)
 }
 \arguments{
-\item{close}{The historical closing prices with no adjustments.}
+\item{price_data}{The historical price data with no adjustments.}
 
 \item{split_adjusted_shares}{Numeric vector of number of shares accounting
 for share splits. Typically, starts with 1 and adjusts for each split to reflect what
@@ -20,13 +20,15 @@ For example, a dividend of 0.2 that occured before a 2:1 split would be reported
 0.1 by Yahoo (assuming no subsequent splits). This function expects the 0.2. Available
 as \code{rawdividend} as returned by \code{make_raw_value}.}
 
-\item{initial_close}{Optional starting close to measure returns against. Default is
-NULL, i.e., just use the first tick from the close vector. If used, the first
+\item{initial_price}{Optional starting price to measure returns against. Default is
+NULL, i.e., just use the first tick from the \code{price_data} vector. If used, the first
 dividend will be included and initial_shares must be provided.}
 
 \item{initial_shares}{Optional starting shares to measure returns against. Default is NULL,
 i.e., just use the first tick in the split_adjusted_shares vector. If used, the
 initial_close must be provided.}
+
+\item{...}{Additional arguments currently unused.}
 }
 \value{
 A numeric vector the same length as the inputs with the arithmetic return from
@@ -39,6 +41,6 @@ number of shares will change based on splits and reinvesting dividends;
 no accounting is done to rebase
 the return for other purchases and sales of shares. The dividends must be as they would
 historically have been reported, not split adjusted as Yahoo provides. A dividend on
-the first tick is not included as Yahoo reports them on the ex-date.
+the first tick is not included in the return as Yahoo reports them on the ex-date.
 }
 
