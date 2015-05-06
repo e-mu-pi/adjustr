@@ -1009,6 +1009,7 @@ test_that("make_raw_value compared to adjusted close",{
   # initialize compoundedshares to rawshares at first index (always 1, unless first tick
   # has a split). On dividend, compoundedshares increases by (compoundedshares*rawdividend/close)
   # On split, compounded shares gets divided by split.
+  # fixed
   raw_value_price[, compoundedshares := make_reinvested_shares(close, rawshares, rawdividend)]#rawshares * cumprod(1+rawdividend/close)]
 #   raw_value_price[, compoundedshares := rawshares + cumsum(rawshares*rawdividend/close)]
   raw_value_price[, compoundedvalue := compoundedshares * close + cumsum(compoundedshares*rawdividend)]
@@ -1030,14 +1031,15 @@ test_that("make_raw_value compared to adjusted close",{
   rv_return <- quick_return( raw_value_price[, rv_col])
   cv_return <- quick_return( raw_value_price[, cv_col])
   
-  #return since 2007 is off by 25%
+  #return since 2007 is off by 23 percentage points: 9.87 vs 10.10
   expect_that( rv_return,
                equals(adjusted_return, tolerance = 0.25, scale = 1) )
+  #return since 2007 is off by 41 percentage points: 10.51 vs 10.10
   expect_that( cv_return,
                equals(adjusted_return, tolerance = 0.42, scale = 1) )
   
   adj_daily <- quantmod::dailyReturn( adjusted_price[, adj_col] )
-  rv_daily <- quantmod::dailyReturn( raw_value_price[, rv_col] )
+  rv_daily <- quantmod::dailyReturn( raw_value_price[, rv_col] ) #this is not the right way to calculate this return
   cv_daily <- quantmod::dailyReturn( raw_value_price[, cv_col] )
   #they don't really match because adj_daily retroactively redefines the 
   #price p on the day before the dividend d to be p-d, so the daily return

@@ -2,20 +2,95 @@
 % Please edit documentation in R/adjustment.R
 \name{make_raw_return}
 \alias{make_raw_return}
-\title{Compute period returns as value change plus dividends.}
+\alias{make_raw_return.data.table}
+\alias{make_raw_return.default}
+\alias{make_raw_return.xts}
+\title{Compute returns as value change plus dividends.}
 \usage{
-make_raw_return(price_data, ...)
+make_raw_return(...)
+
+\method{make_raw_return}{default}(price_data, split_adjusted_shares,
+  split_unadjusted_dividends, initial_rawclose = NULL, ...)
+
+\method{make_raw_return}{xts}(price_data_xts, period = "monthly", ...)
+
+\method{make_raw_return}{data.table}(price_data_dt, start = 1,
+  end = nrow(price_data_dt), ...)
 }
 \arguments{
-\item{price_data}{Price data for which to compute raw returns.}
-
 \item{...}{Additional arguments.}
+
+\item{price_data}{The historical prices, usually closes, with no adjustments.}
+
+\item{split_adjusted_shares}{Numeric vector of number of shares accounting
+for share splits. Typically, starts with 1 and adjusts for each split to reflect what
+that 1 share has become.}
+
+\item{split_unadjusted_dividends}{Numeric vector of dividends as they would
+have been announced historically. The values returned from Yahoo are split adjusted.
+For example, a dividend of 0.2 that occured before a 2:1 split would be reported as
+0.1 by Yahoo (assuming no subsequent splits). This function expects the 0.2. See
+\code{\link{unadjust}}.}
+
+\item{initial_rawclose}{Optional starting value to measure returns against. Default is
+NULL, i.e., just use the first ticks from the other data vectors. If used, the first
+dividend will be included.}
+
+\item{price_data_xts}{An \code{xts} object with columns \code{close, rawshares, rawdividend}
+or with a symbol \code{SYM}, columns \code{SYM.Close, SYM.Rawshares, SYM.Rawdividend}.}
+
+\item{period}{A string indicating a granularity. See \code{\link[quantmod]{periodReturn}}.}
+
+\item{price_data_dt}{A \code{data.table} of price data as produced by \code{make_raw_data}.
+In particular, it must have columns \code{close, rawshares, rawdividend}.}
+
+\item{start,end}{Index vectors (numeric or logical) of starting/ending points.
+They should be the same length. If logical, they should have the same number
+of TRUE values.}
 }
 \value{
 Return data assuming shares are split according to split data
     and dividends are paid, one for each share, but not reinvested.
+
+A numeric vector the same length as the inputs with the arithmetic return from
+the first close including dividends.
+
+An \code{xts} object ordered by the \code{index} column granulated to period. The
+returns are calculated as close to close values multiplied by rawshares to account for
+splits and adding in dividends over the period. Note that a dividend on date t in Yahoo
+data is only paid to those holding at the close on date t-1. Therefore, there a dividend
+on date t for which t is also the period start will be recorded in the period ending on date
+t, not the next period starting on t. In particular, daily returns include a dividend on
+date t in the return from t-1 to t, recorded as the return on date t.
+
+Note that daily raw returns for one week do not simply convert to weekly returns as prod(1+r).
+Each day the basis for return is the close, but the return comes from the following close
+plus dividends. Those dividends are not included in the basis for the following day.
+
+A \code{data.table} of raw returns with columns index and rawreturn.
+If the (start,end] ranges do not overlap, the returns are a running calculation from
+each start indexed from start+1 to end. If there the (start,end] ranges do not partition
+the index of the input, the missing indexes are omitted (especially useful when looking
+at trade returns in which you are not always in the market). If there is overlap in
+the (start,end] ranges, there is just one return calculated for each end indexed by the
+index at end.
 }
 \description{
-Compute period returns as value change plus dividends.
+Compute returns as value change plus dividends.
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{default}: Compute raw return from split adjusted shares, dividends, and closing prices.
+
+Computes the return of buying the given number of shares at the first closing price
+and exiting at any intermediate closing price including splits and dividends. The
+number of shares should only change based on splits; no accounting is done to rebase
+the return for other purchases and sales of shares. The dividends must be as they would
+historically have been reported, not split adjusted as Yahoo provides. A dividend on
+the first tick is not included in the return as Yahoo reports them on the ex-date.
+
+\item \code{xts}: Compute period returns as value change plus dividends.
+
+\item \code{data.table}: Compute raw return between start and end.
+}}
 
