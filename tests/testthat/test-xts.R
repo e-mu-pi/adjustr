@@ -96,8 +96,8 @@ test_that("as.data.table.xts does not raise internal selfref error",{
        })
 })
 
-test_that("getDTSymbols returns getSymbols as data.table...is this necessary?",{
-  symbol <- "VUSUX"
+test_that("getDTSymbols returns getSymbols as data.table with splits and dividends",{
+  symbol <- "AAPL"
   actual <- getDTSymbols(symbol)
   
   getSymbols <- quantmod::getSymbols # getSymbols doesn't expect to see the 
@@ -105,13 +105,19 @@ test_that("getDTSymbols returns getSymbols as data.table...is this necessary?",{
   # defaults (gives a warning)
   # Do this rather than attaching quantmod.
   raw <- getSymbols(symbol)
+  splits <- quantmod::getSplits(symbol)
+  dividends <- quantmod::getDividends(symbol)
+  raw <- make_raw_value(raw, splits, dividends)
   expected <- as.data.table( raw )
   
   expect_that( actual,
                equals( expected ) )
   
-  alpha_order <- c("VUSUX.Adjusted", "VUSUX.Close", 
-                   "VUSUX.High", "VUSUX.Low", "VUSUX.Open", "VUSUX.Volume")
+  alpha_order <- c("AAPL.Adjusted", "AAPL.Close", 
+                   "AAPL.Dividend",
+                   "AAPL.High", "AAPL.Low", "AAPL.Open", 
+                   "AAPL.Rawdividend", "AAPL.Rawshares", "AAPL.Rawvalue",
+                   "AAPL.Split", "AAPL.Volume")
   expect_that( as.xts(actual), 
                equals(raw[,alpha_order], check.attributes = FALSE) )
   # can't seem to pass attributes using as.xts

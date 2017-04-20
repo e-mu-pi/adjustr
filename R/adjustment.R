@@ -16,8 +16,11 @@ getDTSymbols <- function(x, ...) {
   getSymbols <- quantmod::getSymbols # getSymbols doesn't expect to see the 
   # package name when it retrieves its defaults (gives a warning).
   # Do this rather than importing getSymbols.
-  data <- getSymbols(x, ...)
-  as.data.table(data)
+  price <- getSymbols(x, ...)
+  splits <- quantmod::getSplits(x, ...)
+  dividends <- quantmod::getDividends(x, ...)
+  raw <- make_raw_value(price, splits, dividends)
+  as.data.table(raw)
 }
 
 #' Turn splits into evolution of single share.
@@ -200,11 +203,8 @@ unadjust.xts <- function(split_adjusted_dividend, splits, ...) {
 #' past data. Changes are applied additively, perhaps multiplicative 
 #' will be added in the future. A dividend paid at time t will increase
 #' the value at time t and all future times. A split at time t will 
-#' apply a factor at time t and all future times. The RawValue and
+#' apply a factor at time t and all future times. The Rawvalue and
 #' RawShares will be added.
-#' 
-#' Because one could accidentally pass in the dividend object as the split and
-#' vice versa, split must be assigned by name.
 #' 
 #' Note that splits and dividends that overlap may not be processed correctly.
 #' Splits are processed first, as the price will be reported post-split, so
@@ -217,15 +217,15 @@ unadjust.xts <- function(split_adjusted_dividend, splits, ...) {
 #'     where \code{data.table} and \code{xts} are both accepted.
 #' @param dividend Split unadjusted dividends as provided by Yahoo, either as \code{data.table}
 #'     or \code{xts}.
-#' @param ... Not sure yet.
 #' @param splits Splits as provided by Yahoo, either as \code{data.table}
 #'     or \code{xts}.
+#' @param ... Not sure yet.
 #'     
 #' @return A \code{data.table} unless an \code{xts} was passed in containing new
 #'     columns with dividend, splits, rawshares, rawdividend, and rawvalue.
 #'     
 #' @export 
-make_raw_value <- function(price_data, dividend, ..., splits) {
+make_raw_value <- function(price_data, splits, dividend, ...) {
   is_xts <- xts::is.xts(price_data)
   if( is_xts ) {
     xts_attr <- xts::xtsAttributes(price_data)

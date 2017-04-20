@@ -1,5 +1,6 @@
 context("Adjustment")
-require(xts) # I couldn't figure out how to get xts::as.xts working without attaching
+library(xts) # I couldn't figure out how to get xts::as.xts working without attaching
+library(data.table)
 
 make_data_table <- function(string_table) {
   data <- read.table(text = string_table, header = TRUE, stringsAsFactors = FALSE)
@@ -273,7 +274,7 @@ test_that("make_raw_value adds dividend values into multisymbol data",{
   expected[, rawdividend := dividend]
   setkey(expected, symbol, index)
   
-  expect_that(make_raw_value( price_data, dividend_data_dt, splits = NULL),
+  expect_that(make_raw_value( price_data, NULL, dividend_data_dt),
               throws_error("dividend must have symbol for multisymbol price data") )
   expect_that(make_raw_value( price_data, dividend_data_xts, splits = NULL),
               throws_error("dividend must have symbol for multisymbol price data") )
@@ -758,6 +759,12 @@ test_that("make_reinvested_return.default computes returns on reinvested dividen
   expect_that( whole_period[5],
                equals( ( reinvested_shares[5]*26 - 50)/50 ) )
   
+  reinvested_value <- make_reinvested_value( raw_prices[, close],
+                                             raw_prices[, rawshares],
+                                             raw_prices[, rawdividend])
+  expect_that( reinvested_value,
+               equals(reinvested_shares*raw_prices[, close]))
+  
   alternate_version <- make_reinvested_return( raw_prices[2:5, close],
                                         raw_prices[2:5, rawshares],
                                         raw_prices[2:5, rawdividend],
@@ -1036,7 +1043,7 @@ test_that("make_raw_value compared to adjusted close",{
                equals(adjusted_return, tolerance = 0.25, scale = 1) )
   #return since 2007 is off by 41 percentage points: 10.51 vs 10.10
   expect_that( cv_return,
-               equals(adjusted_return, tolerance = 0.42, scale = 1) )
+               equals(adjusted_return, tolerance = 0.46, scale = 1) )
   
   adj_daily <- quantmod::dailyReturn( adjusted_price[, adj_col] )
   rv_daily <- quantmod::dailyReturn( raw_value_price[, rv_col] ) #this is not the right way to calculate this return

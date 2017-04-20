@@ -5,13 +5,13 @@ Version: 0.1.0
 Date: 2015-03-13
 Author: EMP <e-mu-pi@users.noreply.github.com>
 Maintainer: EMP <e-mu-pi@users.noreply.github.com>
-Description: Implementation of split and dividend adjustment alternatives 
-    to the standard dividend adjustment provided by quantmod/Yahoo. 
+Description: Implementation of split and dividend adjustment alternatives
+    to the standard dividend adjustment provided by quantmod/Yahoo.
     It provides functions to remove the split adjustments
     from dividends. It provides two ways to include splits and dividends
-    with price data (raw and reinvested) complementary to the adjusted 
+    with price data (raw and reinvested) complementary to the adjusted
     values from Yahoo and quantmod. The raw adjustment assumes that
-    assumes that dividends are added to your value and splits alters 
+    assumes that dividends are added to your value and splits alters
     the number of shares you hold. The reinvested adjustment assumes
     that dividends and splits alter the number of shares you hold.
 License: GPL-3
@@ -26,3 +26,4 @@ Imports:
     zoo (>= 1.7-11)
 Suggests:
     testthat (>= 0.9.1)
+RoxygenNote: 5.0.1
