@@ -26,4 +26,4 @@ Imports:
     zoo (>= 1.7-11)
 Suggests:
     testthat (>= 0.9.1)
-RoxygenNote: 5.0.1
+RoxygenNote: 6.0.1

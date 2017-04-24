@@ -229,7 +229,7 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
   is_xts <- xts::is.xts(price_data)
   if( is_xts ) {
     xts_attr <- xts::xtsAttributes(price_data)
-    price <- as.data.table(price_data)
+    price <- gather_symbol(as.data.table(price_data))
   } else {
     price <- copy(price_data)
   }
@@ -243,7 +243,10 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
   }
   multi_symbol <- has_symbol(price) && length(available_symbols) > 1
   if( xts::is.xts(dividend) ) {
-    dividend <- as.data.table(dividend)
+    dividend <- gather_symbol(as.data.table(dividend))
+    if( "div" %in% names(dividend) ) {
+      setnames(dividend, "div", "dividend")
+    }
     if( all( names(dividend) %in% c("index", "V1") ) ){
       setnames(dividend, "V1", "dividend")
     }
@@ -271,7 +274,7 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
   dividend <- normalize(dividend) # I thought the assignment was unnecessary because
   # data.tables are passed by reference, but it wasn't always working??
   if( xts::is.xts(splits) ) {
-    splits <- as.data.table(splits)
+    splits <- gather_symbol(as.data.table(splits))
     if( "spl" %in% names(splits) ) {
       setnames(splits, "spl", "split")
     }
@@ -294,7 +297,7 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
     } else {
       price[, rawshares := 1 / cumprod(split)]
     }
-    price[, rawvalue := rawshares * close]
+    price[, rawvalue := rawshares * Close]
   } else {
     price[, split := 1]
     price[, rawshares := 1]
@@ -343,7 +346,7 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
     }
   }
   if( is_xts ) {
-    price <- as.xts(price)
+    price <- as.xts(spread_symbol(price))
     xts::xtsAttributes(price) <- xts_attr
   }
   price
@@ -428,7 +431,7 @@ make_raw_return.xts <- function(price_data_xts, period = 'monthly', ...) {
   end_points <- end_points[-1] #drop initial 0
   if( ! 1 %in% end_points ) end_points <- c(1, end_points)
   n <- length(end_points)
-  raw_ret_dt <- make_raw_return( as.data.table(price_data_xts), 
+  raw_ret_dt <- make_raw_return( gather_symbol(as.data.table(price_data_xts)), 
                        start = end_points[-n],
                        end = end_points[-1], ... )
   if ( period == 'daily' ) {
@@ -733,7 +736,7 @@ make_reinvested_return.xts <- function(price_data, period = 'monthly', ...) {
   end_points <- end_points[-1] #drop initial 0
   if( ! 1 %in% end_points ) end_points <- c(1, end_points)
   n <- length(end_points)
-  reinvested_ret_dt <- make_reinvested_return( as.data.table(price_data), 
+  reinvested_ret_dt <- make_reinvested_return( gather_symbol(as.data.table(price_data)), 
                                  start = end_points[-n],
                                  end = end_points[-1], ... )
   if ( period == 'daily' ) {
