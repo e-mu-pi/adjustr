@@ -2,9 +2,9 @@
 % Please edit documentation in R/adjustment.R
 \name{make_raw_return}
 \alias{make_raw_return}
-\alias{make_raw_return.data.table}
 \alias{make_raw_return.default}
 \alias{make_raw_return.xts}
+\alias{make_raw_return.data.table}
 \title{Compute returns as value change plus dividends.}
 \usage{
 make_raw_return(...)

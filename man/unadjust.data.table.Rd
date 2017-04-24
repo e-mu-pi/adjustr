@@ -22,4 +22,3 @@ and \code{unadjusted_dividend}. The merge matches on the \code{index} field. Mis
 Assumes that unadjusted dividends are only accurate to 3 decimal places
 unless \code{max_decimals} specifies otherwise.
 }
-

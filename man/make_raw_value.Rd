@@ -38,4 +38,3 @@ per share. In practice, this may be false, in which case work would need to be d
 
 TODO: Need to make sure it works when there is a split or dividend on a date with no price.
 }
-

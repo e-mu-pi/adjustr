@@ -23,4 +23,3 @@ A numeric vector of unadjusted dividends.
 Assumes that unadjusted dividends are only accurate to 3 decimal places
 unless \code{max_decimals} specifies otherwise.
 }
-

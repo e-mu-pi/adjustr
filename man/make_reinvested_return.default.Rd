@@ -43,4 +43,3 @@ the return for other purchases and sales of shares. The dividends must be as the
 historically have been reported, not split adjusted as Yahoo provides. A dividend on 
 the first tick is not included in the return as Yahoo reports them on the ex-date.
 }
-

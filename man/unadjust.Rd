@@ -16,4 +16,3 @@ unadjust(split_adjusted_dividend, splits, ...)
 \description{
 Turn split adjusted dividends into unadjusted dividends.
 }
-

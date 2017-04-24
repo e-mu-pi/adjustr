@@ -29,4 +29,3 @@ index at end.
 \description{
 Compute reinvested return between start and end.
 }
-

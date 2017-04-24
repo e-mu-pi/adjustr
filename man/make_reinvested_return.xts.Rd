@@ -30,4 +30,3 @@ plus dividends. Those dividends are not included in the basis for the following 
 \description{
 Compute period returns by reinvesting within period dividends.
 }
-

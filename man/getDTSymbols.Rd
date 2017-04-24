@@ -18,4 +18,3 @@ A \code{data.table} of data for input symbols with adjustments.
 \code{getDTSymbols} adapts \code{quantmod::getSymbols} to convert
 results to \code{data.table}.
 }
-

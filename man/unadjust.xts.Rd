@@ -22,4 +22,3 @@ and \code{unadjusted_dividend}. Missing splits are filled in with 1. Missing div
 Assumes that unadjusted dividends are only accurate to 3 decimal places
 unless \code{max_decimals} specifies otherwise.
 }
-

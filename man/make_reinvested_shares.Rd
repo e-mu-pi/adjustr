@@ -39,4 +39,3 @@ modified to match your reinvestment procedure. Also for large accounts, you may
 need to find share buyback data to accurately reflect other ways cash will be returned
 to you (not handled in this function).
 }
-

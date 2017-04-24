@@ -17,4 +17,3 @@ initial position of 1 share.
 \description{
 Turn splits into evolution of single share.
 }
-
