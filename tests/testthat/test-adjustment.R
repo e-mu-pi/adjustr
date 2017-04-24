@@ -1,6 +1,8 @@
 context("Adjustment")
-library(xts) # I couldn't figure out how to get xts::as.xts working without attaching
+library(xts)
 library(data.table)
+
+as_quantmod <- function(x) as.xts( spread_symbol(x))
 
 make_data_table <- function(string_table) {
   data <- read.table(text = string_table, header = TRUE, stringsAsFactors = FALSE)
@@ -16,7 +18,7 @@ test_that("make_shares turns splits into the evolution of 1 share",{
 })
 
 test_that("unadjust.default removes split adjustment from dividends",{
-  price_data <- make_data_table("index symbol high close
+  price_data <- make_data_table("index symbol high Close
                                 2015-03-16 SYM 56.6  55.94
                                 2015-03-17 SYM 59.23 57.25
                                 2015-03-18 SYM 58.72 56.49")
@@ -117,7 +119,7 @@ test_that("unadjust.xts removes split adjustment from dividends",{
 })
 
 test_that("unadjust works with extraneous columns",{
-  price_data <- make_data_table("index symbol close  splits
+  price_data <- make_data_table("index symbol Close  splits
                                 2015-03-16 SYM 55.94 1
                                 2015-03-17 SYM 28.63 0.5
                                 2015-03-18 SYM  28.24 1
@@ -134,7 +136,7 @@ test_that("unadjust works with extraneous columns",{
   expected <- expected[, dividend := c(0.45, 0, 0.444, 0, 0.45)]
   expected[, shares := make_shares(splits)]
   expected[, unadjusted_dividend := unadjust(dividend, splits)]
-  usual_order <- c("index", "symbol", "close", "dividend", 
+  usual_order <- c("index", "symbol", "Close", "dividend", 
                    "splits", "shares", "unadjusted_dividend")
   setcolorder(expected, usual_order)
   setkey(expected, index)
@@ -143,7 +145,7 @@ test_that("unadjust works with extraneous columns",{
                       names(expected)[ ! names(expected) %in% c("index", "dividend")])
   expect_that( unadjust( dividend, price_data),
                equals( expected[, dividend_first, with = FALSE] ))
-  expect_that( unadjust( expected[,c("index","symbol", "close", "dividend"), with = FALSE],
+  expect_that( unadjust( expected[,c("index","symbol", "Close", "dividend"), with = FALSE],
                          price_data[(splits != 1),c("index", "splits"), with = FALSE]),
                equals(expected) )
 
@@ -161,12 +163,12 @@ test_that("unadjust works with extraneous columns",{
   price_data_xts <- as.xts( dplyr::select(price_data, -symbol) )
   expected_xts <- as.xts( dplyr::select( expected, -symbol ) )
 
-  dividend_first <- c("dividend", "close", "splits", 
+  dividend_first <- c("dividend", "Close", "splits", 
                       "shares", "unadjusted_dividend")
   expect_that( unadjust( dividend_xts, price_data_xts),
                equals( expected_xts[, dividend_first] ))
   nontrivial_splits <- price_data_xts[,"splits"] != 1
-  expect_that( unadjust( expected_xts[,c("index","symbol", "close", "dividend")],
+  expect_that( unadjust( expected_xts[,c("index","symbol", "Close", "dividend")],
                          price_data_xts[nontrivial_splits,c("index", "splits")]),
                equals(expected_xts) )
   
@@ -220,7 +222,7 @@ test_that("unadjust works with outputs from quantmod",{
 })
 
 test_that("make_raw_value adds dividend values into price data",{
-  price_data <- make_data_table("index symbol high close
+  price_data <- make_data_table("index symbol high Close
                                 2015-03-16 SYM 56.6  55.94
                                 2015-03-17 SYM 59.23 57.25
                                 2015-03-18 SYM 58.72 56.49")
@@ -234,7 +236,7 @@ test_that("make_raw_value adds dividend values into price data",{
   expected[, rawvalue := 0]
   expected[, dividend := c(0, 0.052, 0)]
   expected[, rawdividend := dividend]
-  expected[, rawvalue := close + cumsum(dividend)]
+  expected[, rawvalue := Close + cumsum(dividend)]
   
   setkey(expected, symbol, index)
   expect_that( make_raw_value( price_data, dividend_data_dt, splits = NULL),
@@ -242,14 +244,16 @@ test_that("make_raw_value adds dividend values into price data",{
   expect_that( make_raw_value( price_data, dividend_data_xts, splits = NULL),
                equals(expected) )
   
-  expect_that( make_raw_value( as.xts(price_data), dividend_data_dt, splits = NULL),
-               equals( as.xts(expected) ) )
-  expect_that( make_raw_value( as.xts(price_data), dividend_data_xts, splits = NULL),
-               equals( as.xts(expected) ) )
+  price_xts <- as_quantmod(price_data)
+  expected_xts <- as_quantmod(expected)
+  expect_that( make_raw_value( price_xts, dividend_data_dt, splits = NULL),
+               equals( expected_xts ) )
+  expect_that( make_raw_value( price_xts, dividend_data_xts, splits = NULL),
+               equals( expected_xts ) )
 })
 
 test_that("make_raw_value adds dividend values into multisymbol data",{
-  price_data <- make_data_table("index symbol high close 
+  price_data <- make_data_table("index symbol high Close 
                                 2015-03-16 SYM 56.6  55.94
                                 2015-03-17 SYM 59.23 57.25
                                 2015-03-18 SYM 58.72 56.49
@@ -268,9 +272,9 @@ test_that("make_raw_value adds dividend values into multisymbol data",{
   expected[, rawvalue := 0]
   expected[, dividend := 0]
   expected[symbol == "SYM", dividend := c(0, 0.052, 0)]
-  expected[symbol == "SYM", rawvalue := close + cumsum(dividend)]
+  expected[symbol == "SYM", rawvalue := Close + cumsum(dividend)]
   expected[symbol == "SYM2", dividend := c(0.012, 0, 0)]
-  expected[symbol == "SYM2", rawvalue := close + cumsum(dividend)]
+  expected[symbol == "SYM2", rawvalue := Close + cumsum(dividend)]
   expected[, rawdividend := dividend]
   setkey(expected, symbol, index)
   
@@ -278,27 +282,29 @@ test_that("make_raw_value adds dividend values into multisymbol data",{
               throws_error("dividend must have symbol for multisymbol price data") )
   expect_that(make_raw_value( price_data, dividend_data_xts, splits = NULL),
               throws_error("dividend must have symbol for multisymbol price data") )
-  expect_that(make_raw_value( as.xts(price_data), dividend_data_dt, splits = NULL),
+  price_xts <- as_quantmod(price_data)
+  expect_that(make_raw_value( price_xts, dividend_data_dt, splits = NULL),
               throws_error("dividend must have symbol for multisymbol price data") )
-  expect_that(make_raw_value( as.xts(price_data), dividend_data_xts, splits = NULL),
+  expect_that(make_raw_value( price_xts, dividend_data_xts, splits = NULL),
               throws_error("dividend must have symbol for multisymbol price data") )
   
   dividend_data_dt[, symbol := c("SYM", "SYM2")]
-  colnames(dividend_data_xts) <- c("SYM.Dividend", "SYM2.Dividend")
+  colnames(dividend_data_xts) <- c("SYM.dividend", "SYM2.dividend")
   
   expect_that( make_raw_value( price_data, dividend_data_dt, splits = NULL),
                equals(expected) )
   expect_that( make_raw_value( price_data, dividend_data_xts, splits = NULL),
                equals(expected) )
   
-  expect_that( make_raw_value( as.xts(price_data), dividend_data_dt, splits = NULL),
-               equals( as.xts(expected) ) )
-  expect_that( make_raw_value( as.xts(price_data), dividend_data_xts, splits = NULL),
-               equals( as.xts(expected) ) )
+  expected_xts <- as_quantmod(expected)
+  expect_that( make_raw_value( price_xts, dividend_data_dt, splits = NULL),
+               equals( expected_xts ) )
+  expect_that( make_raw_value( price_xts, dividend_data_xts, splits = NULL),
+               equals( expected_xts ) )
 })
 
 test_that("make_raw_value factors split values into price data",{
-  price_data <- make_data_table("index symbol high close
+  price_data <- make_data_table("index symbol high Close
                                 2015-03-16 SYM 56.6  55.94
                                 2015-03-17 SYM 29.62 28.63
                                 2015-03-18 SYM 29.36 28.24")
@@ -309,8 +315,8 @@ test_that("make_raw_value factors split values into price data",{
   expected <- data.table::copy(price_data)
   expected[, split := c(1, 0.5, 1)]
   expected[, rawshares := c(1, 2, 2)]
-  expected[, rawvalue := close]
-  expected[2:3, rawvalue := 2 * close]
+  expected[, rawvalue := Close]
+  expected[2:3, rawvalue := 2 * Close]
   expected[, dividend := 0]
   expected[, rawdividend := 0]
   
@@ -319,14 +325,16 @@ test_that("make_raw_value factors split values into price data",{
                  equals(expected) )
   expect_that( make_raw_value( price_data, dividend = NULL, splits = split_xts),
                equals(expected) )
-  expect_that( make_raw_value( as.xts(price_data), dividend = NULL, splits = split_dt),
-               equals( as.xts(expected) ) )
-  expect_that( make_raw_value( as.xts(price_data), dividend = NULL, splits = split_xts),
-               equals( as.xts(expected) ) )  
+  price_xts <- as_quantmod(price_data)
+  expected_xts <- as_quantmod(expected)
+  expect_that( make_raw_value( price_xts, dividend = NULL, splits = split_dt),
+               equals( expected_xts ) )
+  expect_that( make_raw_value( price_xts, dividend = NULL, splits = split_xts),
+               equals( expected_xts ) )  
 })
 
 test_that("make_raw_value factors split values into multisymbol data",{
-  price_data <- make_data_table("index symbol high close
+  price_data <- make_data_table("index symbol high Close
                                 2015-03-16 SYM 56.6  55.94
                                 2015-03-17 SYM 29.62 28.63
                                 2015-03-18 SYM 29.36 28.24
@@ -347,7 +355,7 @@ test_that("make_raw_value factors split values into multisymbol data",{
   expected[symbol == "SYM", split := c(1, 0.5, 1)]
   expected[symbol == "SYM2", split := c(0.25, 1, 2)]
   expected[, rawshares := 1/cumprod(split), by = symbol]
-  expected[, rawvalue := close * rawshares]
+  expected[, rawvalue := Close * rawshares]
   expected[, dividend := 0]
   expected[, rawdividend := 0]
   setkey(expected, symbol, index)
@@ -356,27 +364,28 @@ test_that("make_raw_value factors split values into multisymbol data",{
               throws_error("splits must have symbol for multisymbol price data") )
   expect_that(make_raw_value( price_data, dividend = NULL, splits = split_data_xts),
               throws_error("splits must have symbol for multisymbol price data") )
-  expect_that(make_raw_value( as.xts(price_data), dividend = NULL, splits = split_data_dt),
+  price_xts <- as_quantmod(price_data)
+  expect_that(make_raw_value( price_xts, dividend = NULL, splits = split_data_dt),
               throws_error("splits must have symbol for multisymbol price data") )
-  expect_that(make_raw_value( as.xts(price_data), dividend = NULL, splits = split_data_xts),
+  expect_that(make_raw_value( price_xts, dividend = NULL, splits = split_data_xts),
               throws_error("splits must have symbol for multisymbol price data") )
   
   split_data_dt[, symbol := c("SYM2", "SYM", "SYM2")]
-  colnames(split_data_xts) <- c("SYM.Split", "SYM2.Split")
+  colnames(split_data_xts) <- c("SYM.split", "SYM2.split")
   
   expect_that( make_raw_value( price_data, dividend = NULL, splits = split_data_dt),
                equals(expected) )
   expect_that( make_raw_value( price_data, dividend = NULL, splits = split_data_xts),
                equals(expected) )
   
-  expect_that( make_raw_value( as.xts(price_data), dividend = NULL, splits = split_data_dt),
-               equals( as.xts(expected) ) )
-  expect_that( make_raw_value( as.xts(price_data), dividend = NULL, splits = split_data_xts),
-               equals( as.xts(expected) ) )
+  expect_that( make_raw_value( as_quantmod(price_data), dividend = NULL, splits = split_data_dt),
+               equals( as_quantmod(expected) ) )
+  expect_that( make_raw_value( as_quantmod(price_data), dividend = NULL, splits = split_data_xts),
+               equals( as_quantmod(expected) ) )
 })
 
 test_that("make_raw_value works with empty dividend/split results from quantmod",{
-  price_data <- make_data_table("index symbol high close
+  price_data <- make_data_table("index symbol high Close
                                 2015-03-16 SYM 56.6  55.94
                                 2015-03-17 SYM 29.62 28.63
                                 2015-03-18 SYM 29.36 28.24")
@@ -393,34 +402,34 @@ test_that("make_raw_value works with empty dividend/split results from quantmod"
   expected_with_div[, rawvalue := 0]
   expected_with_div[, dividend := c(0.013, 0, 0)]
   expected_with_div[, rawdividend := dividend]
-  expected_with_div[, rawvalue := close + cumsum(dividend)]
+  expected_with_div[, rawvalue := Close + cumsum(dividend)]
   setkey(expected_with_div, symbol, index)
   
   expected_with_spl <- data.table::copy(price_data)
   expected_with_spl[, split := c(1, 0.5, 1)]
   expected_with_spl[, rawshares := c(1, 2, 2)]
-  expected_with_spl[, rawvalue := rawshares * close]
+  expected_with_spl[, rawvalue := rawshares * Close]
   expected_with_spl[, dividend := 0]
   expected_with_spl[, rawdividend := 0]
   setkey(expected_with_spl, symbol, index)
   
   expect_that( make_raw_value( price_data, dividend = dividend, splits = empty_splits),
                equals(expected_with_div) )
-  expect_that( make_raw_value( as.xts(price_data), 
-                           dividend = as.xts(dividend), 
+  expect_that( make_raw_value( as_quantmod(price_data), 
+                           dividend = as_quantmod(dividend), 
                            splits = empty_splits ),
-               equals( as.xts(expected_with_div) ) )
+               equals( as_quantmod(expected_with_div) ) )
   
   expect_that( make_raw_value( price_data, dividend = empty_dividend, splits = splits),
                equals(expected_with_spl) )
-  expect_that( make_raw_value( as.xts(price_data), 
+  expect_that( make_raw_value( as_quantmod(price_data), 
                            dividend = empty_dividend, 
-                           splits = as.xts(splits) ),
-               equals( as.xts(expected_with_spl) ) )
+                           splits = as_quantmod(splits) ),
+               equals( as_quantmod(expected_with_spl) ) )
 })
 
 test_that("make_raw_value assumes dividends are split adjusted (per Yahoo)",{
-  price_data <- make_data_table("index symbol high close
+  price_data <- make_data_table("index symbol high Close
                                 2015-03-16 SYM 56.6  55.94
                                 2015-03-17 SYM 29.62 28.63
                                 2015-03-18 SYM 29.36 28.24")
@@ -434,19 +443,19 @@ test_that("make_raw_value assumes dividends are split adjusted (per Yahoo)",{
   expected[, rawvalue := 0]
   expected[, dividend := c(0.013, 0, 0)]
   expected[, rawdividend := dividend * 5 / rawshares]
-  expected[, rawvalue := rawshares * close + cumsum(rawdividend)]
+  expected[, rawvalue := rawshares * Close + cumsum(rawdividend)]
   setkey(expected, symbol, index)
   
   expect_that( make_raw_value( price_data, dividend = dividend, splits = splits),
                equals(expected) )
-  expect_that( make_raw_value( as.xts(price_data), 
-                           dividend = as.xts(dividend), 
-                           splits = as.xts(splits) ),
-               equals( as.xts(expected) ) )
+  expect_that( make_raw_value( as_quantmod(price_data), 
+                           dividend = as_quantmod(dividend), 
+                           splits = as_quantmod(splits) ),
+               equals( as_quantmod(expected) ) )
 })
 
 test_that("make_raw_value assumes one rawdividend paid per rawshare",{
-  price_data <- make_data_table("index symbol close
+  price_data <- make_data_table("index symbol Close
                                 2015-03-16 SYM 55.94
                                 2015-03-17 SYM 28.63
                                 2015-03-18 SYM  28.24
@@ -465,23 +474,23 @@ test_that("make_raw_value assumes one rawdividend paid per rawshare",{
   expected[, rawvalue := 0]
   expected[, dividend := c(0.45, 0, 0.444, 0, 0.45)]
   expected[, rawdividend := c(0.225, 0, 0.111, 0, 0.45)]
-  expected[, rawvalue := rawshares * close + cumsum(rawshares * rawdividend)]
+  expected[, rawvalue := rawshares * Close + cumsum(rawshares * rawdividend)]
   setkey(expected, symbol, index)
   
   expect_that( make_raw_value( price_data, dividend = dividend, splits = splits),
                equals(expected) )
-  expect_that( make_raw_value( as.xts(price_data), 
-                           dividend = as.xts(dividend), 
-                           splits = as.xts(splits) ),
-               equals( as.xts(expected) ) )
+  expect_that( make_raw_value( as_quantmod(price_data), 
+                           dividend = as_quantmod(dividend), 
+                           splits = as_quantmod(splits) ),
+               equals( as_quantmod(expected) ) )
   # need to split-adjust the dividends even if the price data does not go all the way to
   # the split
   expect_that( make_raw_value( price_data[1:3,], dividend = dividend, splits = splits),
                equals(expected[1:3,]) )
-  expect_that( make_raw_value( as.xts(price_data[1:3,]), 
-                           dividend = as.xts(dividend), 
-                           splits = as.xts(splits) ),
-               equals( as.xts(expected[1:3,]) ) )
+  expect_that( make_raw_value( as_quantmod(price_data[1:3,]), 
+                           dividend = as_quantmod(dividend), 
+                           splits = as_quantmod(splits) ),
+               equals( as_quantmod(expected[1:3,]) ) )
 })
 
 test_that("make_raw_return.default computes rawclose to rawclose plus properly adjusted dividends",{
@@ -500,13 +509,13 @@ test_that("make_raw_return.default computes rawclose to rawclose plus properly a
   # and is used to calculate the return from tick 2 to tick 3. In general, price data
   # needs corresponding shares owned at the close data to determine raw returns if we
   # only hold at a subset of times.
-  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+  all_prices <- make_data_table("index Close split rawshares rawvalue dividend rawdividend
                                 2015-03-17  50    1     1          52        1        2           
                                 2015-03-18  52    1     1          55        0.5      1
                                 2015-03-19  24    0.5   2          51        0        0           
                                 2015-03-20  27    1     2          60        1.5      1.5
                                 2015-03-21  26    1     2          59        0.5      0.5")
-  make_sure <- dplyr::select(all_prices, index, close)
+  make_sure <- dplyr::select(all_prices, index, Close)
   splits <- make_data_table("index split
                             2015-03-19 0.5")
   dividend <- make_data_table("index dividend
@@ -518,7 +527,7 @@ test_that("make_raw_return.default computes rawclose to rawclose plus properly a
   expect_that( data.table::setkey(all_prices, index), 
                equals(raw_prices) )
   
-  whole_period <- make_raw_return( raw_prices[, close],
+  whole_period <- make_raw_return( raw_prices[, Close],
                                    raw_prices[, rawshares], 
                                    raw_prices[, rawdividend]) 
   expect_that( whole_period[1],
@@ -532,13 +541,13 @@ test_that("make_raw_return.default computes rawclose to rawclose plus properly a
   expect_that( whole_period[5],
                equals( (2*(26+0.5+1.5+0.5)-50)/50 ) )
 
-  alternate_version <- make_raw_return( raw_prices[2:5, close],
+  alternate_version <- make_raw_return( raw_prices[2:5, Close],
                                         raw_prices[2:5, rawshares],
                                         raw_prices[2:5, rawdividend],
-                                        raw_prices[1, close * rawshares])
+                                        raw_prices[1, Close * rawshares])
   expect_that( alternate_version,
                equals(whole_period[-1]) )
-  partial_period <- make_raw_return( raw_prices[2:5, close],
+  partial_period <- make_raw_return( raw_prices[2:5, Close],
                                      raw_prices[2:5, rawshares], 
                                      raw_prices[2:5, rawdividend]) 
   expect_that( partial_period[1],
@@ -550,10 +559,10 @@ test_that("make_raw_return.default computes rawclose to rawclose plus properly a
   expect_that( partial_period[4],
                equals( (2*(26+1.5+0.5)-52)/52 ) )
   
-  post_split <- make_raw_return( raw_prices[3:5, close],
+  post_split <- make_raw_return( raw_prices[3:5, Close],
                                  raw_prices[3:5, rawshares], 
                                  raw_prices[3:5, rawdividend]) 
-  post_split_resized <- make_raw_return( raw_prices[3:5, close],
+  post_split_resized <- make_raw_return( raw_prices[3:5, Close],
                                          c(1,1,1),
                                      raw_prices[3:5, rawdividend])
   expect_that( post_split,
@@ -563,7 +572,7 @@ test_that("make_raw_return.default computes rawclose to rawclose plus properly a
 })
 
 test_that("make_raw_return.data.table computed based on matching start/end index",{
-  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+  all_prices <- make_data_table("index Close split rawshares rawvalue dividend rawdividend
                                 2015-03-17  50    1     1          52        1        2           
                                 2015-03-18  52    1     1          55        0.5      1
                                 2015-03-19  24    0.5   2          50        0        0           
@@ -637,7 +646,7 @@ test_that("make_raw_return.data.table computed based on matching start/end index
 })
 
 test_that("make_raw_return.xts uses similar options as quantmod::periodReturn",{
-  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+  all_prices <- make_data_table("index Close split rawshares rawvalue dividend rawdividend
                            2015-03-18  50    1     1          52        1        2           
                            2015-03-19  24    0.5   2          50        0        0           
                            2015-03-20  27    1     2          59        1.5      1.5
@@ -664,13 +673,13 @@ test_that("make_raw_return.xts uses similar options as quantmod::periodReturn",{
 })
 
 test_that("make_reinvested_shares computed as if dividends are reinvested in fractional shares at the previous close",{
-  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+  all_prices <- make_data_table("index Close split rawshares rawvalue dividend rawdividend
                                 2015-03-17  50    1     1          52        1        2           
                                 2015-03-18  52    1     1          55        0.5      1
                                 2015-03-19  24    0.5   2          51        0        0           
                                 2015-03-20  27    1     2          60        1.5      1.5
                                 2015-03-21  26    1     2          59        0.5      0.5")
-  make_sure <- dplyr::select(all_prices, index, close)
+  make_sure <- dplyr::select(all_prices, index, Close)
   splits <- make_data_table("index split
                             2015-03-19 0.5")
   dividend <- make_data_table("index dividend
@@ -682,7 +691,7 @@ test_that("make_reinvested_shares computed as if dividends are reinvested in fra
   expect_that( data.table::setkey(all_prices, index), 
                equals(raw_prices) )
   
-  reinvestedshares <- make_reinvested_shares(raw_prices[,close],
+  reinvestedshares <- make_reinvested_shares(raw_prices[,Close],
                                          raw_prices[,rawshares],
                                          raw_prices[,rawdividend])
   #first tick dividend is not received...must have been holding from the previous day
@@ -697,10 +706,10 @@ test_that("make_reinvested_shares computed as if dividends are reinvested in fra
   expect_that( reinvestedshares[5],
                equals( 2*(1+ 1/50) * (1+1.5/24) * (1 + 0.5/27) ) )
   
-  start_after_split <- make_reinvested_shares(raw_prices[3:5,close],
+  start_after_split <- make_reinvested_shares(raw_prices[3:5,Close],
                                         raw_prices[3:5,rawshares],
                                         raw_prices[3:5,rawdividend])
-  resized <- make_reinvested_shares(raw_prices[3:5,close],
+  resized <- make_reinvested_shares(raw_prices[3:5,Close],
                                c(1,1,1),
                                raw_prices[3:5,rawdividend])
   expect_that( start_after_split,
@@ -723,13 +732,13 @@ test_that("make_reinvested_return.default computes returns on reinvested dividen
   # and is used to calculate the return from tick 2 to tick 3. In general, price data
   # needs corresponding shares owned at the close data to determine raw returns if we
   # only hold at a subset of times.
-  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+  all_prices <- make_data_table("index Close split rawshares rawvalue dividend rawdividend
                                 2015-03-17  50    1     1          52        1        2           
                                 2015-03-18  52    1     1          55        0.5      1
                                 2015-03-19  24    0.5   2          51        0        0           
                                 2015-03-20  27    1     2          60        1.5      1.5
                                 2015-03-21  26    1     2          59        0.5      0.5")
-  make_sure <- dplyr::select(all_prices, index, close)
+  make_sure <- dplyr::select(all_prices, index, Close)
   splits <- make_data_table("index split
                             2015-03-19 0.5")
   dividend <- make_data_table("index dividend
@@ -741,11 +750,11 @@ test_that("make_reinvested_return.default computes returns on reinvested dividen
   expect_that( data.table::setkey(all_prices, index), 
                equals(raw_prices) )
   
-  reinvested_shares <- make_reinvested_shares(raw_prices[,close], 
+  reinvested_shares <- make_reinvested_shares(raw_prices[,Close], 
                                       raw_prices[,rawshares],
                                       raw_prices[,rawdividend])
   
-  whole_period <- make_reinvested_return( raw_prices[, close],
+  whole_period <- make_reinvested_return( raw_prices[, Close],
                                           raw_prices[, rawshares], 
                                           raw_prices[, rawdividend] )
   expect_that( whole_period[1],
@@ -759,35 +768,35 @@ test_that("make_reinvested_return.default computes returns on reinvested dividen
   expect_that( whole_period[5],
                equals( ( reinvested_shares[5]*26 - 50)/50 ) )
   
-  reinvested_value <- make_reinvested_value( raw_prices[, close],
+  reinvested_value <- make_reinvested_value( raw_prices[, Close],
                                              raw_prices[, rawshares],
                                              raw_prices[, rawdividend])
   expect_that( reinvested_value,
-               equals(reinvested_shares*raw_prices[, close]))
+               equals(reinvested_shares*raw_prices[, Close]))
   
-  alternate_version <- make_reinvested_return( raw_prices[2:5, close],
+  alternate_version <- make_reinvested_return( raw_prices[2:5, Close],
                                         raw_prices[2:5, rawshares],
                                         raw_prices[2:5, rawdividend],
-                                        raw_prices[1, close],
+                                        raw_prices[1, Close],
                                         raw_prices[1, rawshares])
   expect_that( alternate_version,
                equals(whole_period[-1]) )
 
-  alternate_post_split <- make_reinvested_return( raw_prices[3:5, close],
+  alternate_post_split <- make_reinvested_return( raw_prices[3:5, Close],
                                                raw_prices[3:5, rawshares],
                                                raw_prices[3:5, rawdividend],
-                                               raw_prices[2, close],
+                                               raw_prices[2, Close],
                                                raw_prices[2, rawshares])
   expect_that( alternate_post_split,
-               equals(  make_reinvested_return( raw_prices[2:5, close],
+               equals(  make_reinvested_return( raw_prices[2:5, Close],
                                                 raw_prices[2:5, rawshares], 
                                                 raw_prices[2:5, rawdividend] )[-1]
                ) )
   
-  partial_period <- make_reinvested_return( raw_prices[2:5, close], 
+  partial_period <- make_reinvested_return( raw_prices[2:5, Close], 
                                      raw_prices[2:5, rawshares], 
                                      raw_prices[2:5, rawdividend])
-  reinvested_shares <- make_reinvested_shares( raw_prices[2:5, close],
+  reinvested_shares <- make_reinvested_shares( raw_prices[2:5, Close],
                                                raw_prices[2:5, rawshares],
                                                raw_prices[2:5, rawdividend] )
   expect_that( partial_period[1],
@@ -799,10 +808,10 @@ test_that("make_reinvested_return.default computes returns on reinvested dividen
   expect_that( partial_period[4],
                equals( ( reinvested_shares[4] * 26 - 52)/52 ) )
   
-  post_split <- make_reinvested_return( raw_prices[3:5, close], 
+  post_split <- make_reinvested_return( raw_prices[3:5, Close], 
                                  raw_prices[3:5, rawshares], 
                                  raw_prices[3:5, rawdividend]) 
-  post_split_resized <- make_reinvested_return( raw_prices[3:5, close],
+  post_split_resized <- make_reinvested_return( raw_prices[3:5, Close],
                                                 c(1,1,1),
                                          raw_prices[3:5, rawdividend])
   expect_that( post_split,
@@ -810,7 +819,7 @@ test_that("make_reinvested_return.default computes returns on reinvested dividen
 })
 
 test_that("make_reinvested_return.data.table computed based on matching start/end index",{
-  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+  all_prices <- make_data_table("index Close split rawshares rawvalue dividend rawdividend
                                 2015-03-17  50    1     1          52        1        2           
                                 2015-03-18  52    1     1          55        0.5      1
                                 2015-03-19  24    0.5   2          50        0        0           
@@ -884,17 +893,17 @@ test_that("make_reinvested_return.data.table computed based on matching start/en
 })
 
 test_that("make_reinvested_return.xts uses similar options as quantmod::periodReturn",{
-  all_prices <- make_data_table("index close split rawshares rawvalue dividend rawdividend
+  all_prices <- make_data_table("index Close split rawshares rawvalue dividend rawdividend
                                 2015-03-18  50    1     1          52        1        2           
                                 2015-03-19  24    0.5   2          50        0        0           
                                 2015-03-20  27    1     2          59        1.5      1.5
                                 2015-03-21  26    1     2          58        0.5      0.5")
-  all_prices <- as.xts(all_prices)
+  all_prices <- as.xts( all_prices)
   
   reinvested_daily <- make_reinvested_return(all_prices, 'daily')
   
   expected_daily <- xts( data.frame(daily_reinvested_return = c(0,
-                                                        (48-50)/50, #assume we buy the close, no dividend collected
+                                                        (48-50)/50, #assume we buy the Close, no dividend collected
                                                         (54*(1+1.5/24)-48)/48, #collect the 1.5 dividend on 2 shares
                                                         (26*(1+0.5/27)-27)/27)),#same as (53-54)/54
                          order.by = index(all_prices) ) 
@@ -914,7 +923,7 @@ test_that("make_reinvested_return.xts uses similar options as quantmod::periodRe
 })
 
 test_that("make_raw_value ignores dividends/splits outside time period except to adjust dividends",{
-  price_data <- make_data_table("index symbol high close
+  price_data <- make_data_table("index symbol high Close
                                 2015-03-16 SYM 56.6  55.94
                                 2015-03-17 SYM 29.62 28.63
                                 2015-03-18 SYM 29.36 28.24")
@@ -932,19 +941,19 @@ test_that("make_raw_value ignores dividends/splits outside time period except to
   expected[, rawvalue := 0]
   expected[, dividend := c(0.04, 0, 0)]
   expected[, rawdividend := dividend * 2/7]
-  expected[, rawvalue := rawshares * close + cumsum(rawshares * rawdividend)]
+  expected[, rawvalue := rawshares * Close + cumsum(rawshares * rawdividend)]
   setkey(expected, symbol, index)
   
   expect_that( make_raw_value( price_data, dividend = dividend, splits = splits),
                equals(expected) )
-  expect_that( make_raw_value( as.xts(price_data), 
-                           dividend = as.xts(dividend), 
-                           splits = as.xts(splits) ),
-               equals( as.xts(expected) ) )
+  expect_that( make_raw_value( as_quantmod(price_data), 
+                           dividend = as_quantmod(dividend), 
+                           splits = as_quantmod(splits) ),
+               equals( as_quantmod(expected) ) )
 })
 
 test_that("make_raw_value cannot use nonsymboled price data with multisymbol dividends or splits",{
-  price_data <- make_data_table("index high close
+  price_data <- make_data_table("index high Close
                                 2015-03-16 56.6  55.94
                                 2015-03-17 59.23 57.25
                                 2015-03-18 58.72 56.49")
@@ -959,9 +968,10 @@ test_that("make_raw_value cannot use nonsymboled price data with multisymbol div
               throws_error("price must have symbol for multisymbol dividend data") )
   expect_that(make_raw_value( price_data, dividend_data_xts, splits = NULL),
               throws_error("price must have symbol for multisymbol dividend data") )
-  expect_that(make_raw_value( as.xts(price_data), dividend_data_dt, splits = NULL),
+  price_xts <- as.xts( price_data )
+  expect_that(make_raw_value( price_xts, dividend_data_dt, splits = NULL),
               throws_error("price must have symbol for multisymbol dividend data") )
-  expect_that(make_raw_value( as.xts(price_data), dividend_data_xts, splits = NULL),
+  expect_that(make_raw_value( price_xts, dividend_data_xts, splits = NULL),
               throws_error("price must have symbol for multisymbol dividend data") )
   
   split_data_dt <- make_data_table("index split symbol
@@ -1010,21 +1020,21 @@ test_that("make_raw_value compared to adjusted close",{
   adjusted_price <- quantmod::adjustOHLC( price, symbol.name = symbol)
   raw_value_price <- make_raw_value( price, dividend, splits = splits)
   
-  raw_value_price <- as.data.table(raw_value_price)
+  raw_value_price <- gather_symbol( as.data.table( raw_value_price) )
   # truly compounded shares would be paid dividends on the compounded shares.
   # this assumes you get paid dividends on your raw shares only.
   # initialize compoundedshares to rawshares at first index (always 1, unless first tick
   # has a split). On dividend, compoundedshares increases by (compoundedshares*rawdividend/close)
   # On split, compounded shares gets divided by split.
   # fixed
-  raw_value_price[, compoundedshares := make_reinvested_shares(close, rawshares, rawdividend)]#rawshares * cumprod(1+rawdividend/close)]
+  raw_value_price[, compoundedshares := make_reinvested_shares(Close, rawshares, rawdividend)]#rawshares * cumprod(1+rawdividend/close)]
 #   raw_value_price[, compoundedshares := rawshares + cumsum(rawshares*rawdividend/close)]
-  raw_value_price[, compoundedvalue := compoundedshares * close + cumsum(compoundedshares*rawdividend)]
-  raw_value_price <- as.xts(raw_value_price)
+  raw_value_price[, compoundedvalue := compoundedshares * Close + cumsum(compoundedshares*rawdividend)]
+  raw_value_xts <- as_quantmod(raw_value_price)
   
   adj_col <- paste0(symbol,".Close")
-  rv_col <- paste0(symbol,".Rawvalue")
-  cv_col <- paste0(symbol,".Compoundedvalue")
+  rv_col <- paste0(symbol,".rawvalue")
+  cv_col <- paste0(symbol,".compoundedvalue")
   
   quick_return <- function(x) {
     n <- nrow(x)
@@ -1035,8 +1045,8 @@ test_that("make_raw_value compared to adjusted close",{
     log(as.numeric(x[n,]) / as.numeric(x[1,]) )
   }
   adjusted_return <- quick_return(adjusted_price[, adj_col])
-  rv_return <- quick_return( raw_value_price[, rv_col])
-  cv_return <- quick_return( raw_value_price[, cv_col])
+  rv_return <- quick_return( raw_value_xts[, rv_col])
+  cv_return <- quick_return( raw_value_xts[, cv_col])
   
   #return since 2007 is off by 23 percentage points: 9.87 vs 10.10
   expect_that( rv_return,
@@ -1046,8 +1056,8 @@ test_that("make_raw_value compared to adjusted close",{
                equals(adjusted_return, tolerance = 0.46, scale = 1) )
   
   adj_daily <- quantmod::dailyReturn( adjusted_price[, adj_col] )
-  rv_daily <- quantmod::dailyReturn( raw_value_price[, rv_col] ) #this is not the right way to calculate this return
-  cv_daily <- quantmod::dailyReturn( raw_value_price[, cv_col] )
+  rv_daily <- quantmod::dailyReturn( raw_value_xts[, rv_col] ) #this is not the right way to calculate this return
+  cv_daily <- quantmod::dailyReturn( raw_value_xts[, cv_col] )
   #they don't really match because adj_daily retroactively redefines the 
   #price p on the day before the dividend d to be p-d, so the daily return
   #will be wrt p-d, but rv_daily will use p.

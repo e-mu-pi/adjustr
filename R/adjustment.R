@@ -1,6 +1,8 @@
 #' @import data.table
 NULL
 
+needs_symbol <- function(x) any( grepl(".", names(x), fixed=TRUE) )
+
 #' Retrieve stock prices as data.table
 #' 
 #' \code{getDTSymbols} adapts \code{quantmod::getSymbols} to convert
@@ -229,7 +231,10 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
   is_xts <- xts::is.xts(price_data)
   if( is_xts ) {
     xts_attr <- xts::xtsAttributes(price_data)
-    price <- gather_symbol(as.data.table(price_data))
+    price <- as.data.table(price_data)
+    if( needs_symbol(price) ) {
+      price <- gather_symbol(price)
+    }
   } else {
     price <- copy(price_data)
   }
@@ -243,7 +248,10 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
   }
   multi_symbol <- has_symbol(price) && length(available_symbols) > 1
   if( xts::is.xts(dividend) ) {
-    dividend <- gather_symbol(as.data.table(dividend))
+    dividend <- as.data.table(dividend)
+    if( needs_symbol(dividend) ) {
+      dividend <- gather_symbol(dividend)
+    }
     if( "div" %in% names(dividend) ) {
       setnames(dividend, "div", "dividend")
     }
@@ -274,7 +282,10 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
   dividend <- normalize(dividend) # I thought the assignment was unnecessary because
   # data.tables are passed by reference, but it wasn't always working??
   if( xts::is.xts(splits) ) {
-    splits <- gather_symbol(as.data.table(splits))
+    splits <- as.data.table(splits)
+    if( needs_symbol(splits) ) {
+      splits <- gather_symbol(splits)
+    }
     if( "spl" %in% names(splits) ) {
       setnames(splits, "spl", "split")
     }
@@ -288,9 +299,15 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
   if( ! is_date ) {
     price[, index := as.Date(index)]
   }
+  setkeyv(price, merge_key)
   if( has_some(splits, "split") ) {
     splits[, index := as.Date(index)]
-    price <- merge( price, splits, by = merge_key, all.x = TRUE)
+    setkeyv(splits, merge_key)
+    price_cols <- names(price)
+    extra_split_cols <- names(splits)[ !( names(splits) %in% price_cols)]
+    price <- splits[price, on=merge_key]
+    setcolorder(price, c(price_cols, extra_split_cols))
+    # price <- merge( price, splits, by = merge_key, all.x = TRUE)
     price[is.na(split), split := 1]
     if ( has_symbol(price) ) {
       price[, rawshares := 1 / cumprod(split), by = symbol ]
@@ -301,7 +318,7 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
   } else {
     price[, split := 1]
     price[, rawshares := 1]
-    price[, rawvalue := close]
+    price[, rawvalue := Close]
   }
   if( has_some(dividend, "dividend") ) {
     dividend[, index := as.Date(index)]
@@ -324,7 +341,12 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
     } else {
       dividend[, rawdividend := dividend]
     }
-    price <- merge(price, dividend, by = merge_key, all.x = TRUE)
+    price_cols <- names(price)
+    extra_div_cols <- names(dividend)[ ! ( names(dividend) %in% price_cols ) ]
+    setkeyv(dividend, merge_key)
+    price <- dividend[price, on=merge_key]
+    setcolorder(price, c(price_cols, extra_div_cols))
+    # price <- merge(price, dividend, by = merge_key, all.x = TRUE)
     price[is.na(dividend), dividend := 0]
     price[is.na(rawdividend), rawdividend := 0]
     if( has_symbol( price ) ) {
@@ -406,7 +428,7 @@ make_raw_return.default <- function(price_data, split_adjusted_shares, split_una
 #' 
 #' Compute period returns as value change plus dividends.
 #' 
-#' @param price_data_xts An \code{xts} object with columns \code{close, rawshares, rawdividend}
+#' @param price_data_xts An \code{xts} object with columns \code{Close, rawshares, rawdividend}
 #' or with a symbol \code{SYM}, columns \code{SYM.Close, SYM.Rawshares, SYM.Rawdividend}.
 #' @param period A string indicating a granularity. See \code{\link[quantmod]{periodReturn}}.
 #' 
@@ -431,7 +453,11 @@ make_raw_return.xts <- function(price_data_xts, period = 'monthly', ...) {
   end_points <- end_points[-1] #drop initial 0
   if( ! 1 %in% end_points ) end_points <- c(1, end_points)
   n <- length(end_points)
-  raw_ret_dt <- make_raw_return( gather_symbol(as.data.table(price_data_xts)), 
+  price_data_dt <- as.data.table(price_data_xts)
+  if( needs_symbol(price_data_dt) ) {
+    price_data_dt <- gather_symbol(price_data_dt)
+  }
+  raw_ret_dt <- make_raw_return( price_data_xts, 
                        start = end_points[-n],
                        end = end_points[-1], ... )
   if ( period == 'daily' ) {
@@ -490,7 +516,7 @@ make_raw_return.data.table <- function(price_data_dt, start = 1, end = nrow(pric
   price_data_dt[, period_index := c(0, cumsum( period_index)[-n]) ]
   price_data_dt[, on_period := period_index %in% period_index[end_index]]
 
-  initial_rawclose <- price_data_dt[start_index, close * rawshares]
+  initial_rawclose <- price_data_dt[start_index, Close * rawshares]
   overlap <- any( start_index[-1] < end_index[-n_intervals])
   if( overlap ) {
     overlapped_dividends <- numeric(length(initial_rawclose))  
@@ -499,14 +525,14 @@ make_raw_return.data.table <- function(price_data_dt, start = 1, end = nrow(pric
                                                    sum(rawdividend * rawshares / last(rawshares) )]
     }
     raw_ret <- price_data_dt[(on_period),  
-                          list(rawreturn = make_raw_return(last(close),
+                          list(rawreturn = make_raw_return(last(Close),
                                                            last(rawshares), 
                                                            overlapped_dividends[.GRP], 
                                                            initial_rawclose[.GRP],...) ), 
                           by = period_index]
   } else {
     raw_ret <- price_data_dt[(on_period), 
-                               list(rawreturn = make_raw_return(close,
+                               list(rawreturn = make_raw_return(Close,
                                                                 rawshares, 
                                                                 rawdividend, 
                                                                 initial_rawclose[.GRP],...)), 
@@ -662,7 +688,7 @@ make_reinvested_return.data.table <- function(price_data, start = 1, end = nrow(
   price_data[, period_index := c(0, cumsum( period_index)[-n]) ]
   price_data[, on_period := period_index %in% period_index[end_index]]
   
-  initial_close <- price_data[start_index, close]
+  initial_close <- price_data[start_index, Close]
   initial_shares <- price_data[start_index, rawshares]
   overlap <- any( start_index[-1] < end_index[-n_intervals])
   if( overlap ) {
@@ -672,13 +698,13 @@ make_reinvested_return.data.table <- function(price_data, start = 1, end = nrow(
 #       overlapped_shares[idx] <- price_data[start_index[idx]:end_index[idx],
 #                                            make_reinvested_shares( close, rawshares, rawdividend ) ]
       overlapped_dividend[idx] <- price_data[start_index[idx]:end_index[idx],
-               ( last( make_reinvested_shares( close, rawshares, rawdividend) ) /
+               ( last( make_reinvested_shares( Close, rawshares, rawdividend) ) /
                   last(rawshares) - 1 ) *
                  initial_close[idx] ]
     }
 #     overlapped_dividend <- overlapped_shares
     ret_data <- price_data[(on_period),  list(reinvested_return = 
-                                                make_reinvested_return(last(close),
+                                                make_reinvested_return(last(Close),
                                                                        last(rawshares), 
                                                                        overlapped_dividend[.GRP],
                                                                        initial_close[.GRP],
@@ -686,7 +712,7 @@ make_reinvested_return.data.table <- function(price_data, start = 1, end = nrow(
                               by = period_index]
   } else {
     ret_data <- price_data[(on_period), 
-                              list(reinvested_return = make_reinvested_return(close, 
+                              list(reinvested_return = make_reinvested_return(Close, 
                                                                               rawshares, 
                                                                               rawdividend, 
                                                                               initial_close[.GRP],
@@ -710,7 +736,7 @@ make_reinvested_return.data.table <- function(price_data, start = 1, end = nrow(
 
 #' Compute period returns by reinvesting within period dividends.
 #' 
-#' @param price_data An \code{xts} object with columns \code{close, rawshares, rawdividend}
+#' @param price_data An \code{xts} object with columns \code{Close, rawshares, rawdividend}
 #' or with a symbol \code{SYM}, columns \code{SYM.Close, SYM.Rawshares, SYM.Rawdividend}.
 #' @param period A string indicating a granularity. See quantmod::periodReturn.
 #' @param ... Additional arguments.
@@ -736,7 +762,11 @@ make_reinvested_return.xts <- function(price_data, period = 'monthly', ...) {
   end_points <- end_points[-1] #drop initial 0
   if( ! 1 %in% end_points ) end_points <- c(1, end_points)
   n <- length(end_points)
-  reinvested_ret_dt <- make_reinvested_return( gather_symbol(as.data.table(price_data)), 
+  price_dt <- as.data.table(price_data)
+  if( needs_symbol(price_dt) ) {
+    price_dt <- gather_symbol(price_dt)
+  }
+  reinvested_ret_dt <- make_reinvested_return( price_dt, 
                                  start = end_points[-n],
                                  end = end_points[-1], ... )
   if ( period == 'daily' ) {
