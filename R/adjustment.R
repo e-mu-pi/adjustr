@@ -22,7 +22,7 @@ getDTSymbols <- function(x, ...) {
   splits <- quantmod::getSplits(x, ...)
   dividends <- quantmod::getDividends(x, ...)
   raw <- make_raw_value(price, splits, dividends)
-  as.data.table(raw)
+  gather_symbol( as.data.table(raw) )
 }
 
 #' Turn splits into evolution of single share.

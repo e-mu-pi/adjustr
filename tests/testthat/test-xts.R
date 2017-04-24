@@ -123,7 +123,7 @@ test_that("getDTSymbols returns getSymbols as data.table with splits and dividen
   splits <- quantmod::getSplits(symbol)
   dividends <- quantmod::getDividends(symbol)
   raw <- make_raw_value(price, splits, dividends)
-  expected <- as.data.table( raw )
+  expected <- gather_symbol( as.data.table( raw ) )
   
   expect_that( actual,
                equals( expected ) )
@@ -133,7 +133,7 @@ test_that("getDTSymbols returns getSymbols as data.table with splits and dividen
                    "AAPL.High", "AAPL.Low", "AAPL.Open", 
                    "AAPL.rawdividend", "AAPL.rawshares", "AAPL.rawvalue",
                    "AAPL.split", "AAPL.Volume")
-  expect_that( as.xts(actual), 
+  expect_that( as.xts( spread_symbol(actual) ), 
                equals(raw[,alpha_order], check.attributes = FALSE) )
   # can't seem to pass attributes using as.xts
   #   expect_that( as.xts(actual, xtsAttributes(raw)), 
