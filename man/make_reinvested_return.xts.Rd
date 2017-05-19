@@ -7,7 +7,7 @@
 \method{make_reinvested_return}{xts}(price_data, period = "monthly", ...)
 }
 \arguments{
-\item{price_data}{An \code{xts} object with columns \code{close, rawshares, rawdividend}
+\item{price_data}{An \code{xts} object with columns \code{Close, rawshares, rawdividend}
 or with a symbol \code{SYM}, columns \code{SYM.Close, SYM.Rawshares, SYM.Rawdividend}.}
 
 \item{period}{A string indicating a granularity. See quantmod::periodReturn.}

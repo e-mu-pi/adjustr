@@ -1067,3 +1067,32 @@ test_that("make_raw_value compared to adjusted close",{
   expect_that( cv_daily, 
                equals( adj_daily, tolerance = 3e-4, scale = 1) )
 })
+
+test_that("check_update throws an error when new data is incompatible with old",{
+  new <- make_data_table("index Close split rawshares rawvalue dividend rawdividend Adjusted
+                                2015-03-17  50    1     1          52        1        2   23.229     
+                                2015-03-18  52    1     1          55        0.5      1   24.623
+                                2015-03-19  24    0.5   2          50        0        0   22.729   
+                                2015-03-20  27    1     2          59        1.5      1.5 26.491
+                                2015-03-21  26    1     2          58        0.5      0.5 26")
+  setkey(new, index)
+  # Adjusted calculation to make close to close rate of return the same as price+dividend return
+  # normalized so that final Close matches current market.
+  # For example, final step moves the close from 27 to 26 but also returns a 0.5 dividend,
+  # so solve (1+r)*27 = 26+0.5, then adjusted * (1+r) = 26 determines 
+  # adjusted = 26 * 27/26.5
+  old <- new[1:4,]
+  expect_true( check_update(old, new) )
+  expect_error( check_update( copy(old)[1, Close := 0], new))
+  expect_error( check_update( copy(old)[1, split := 0], new))
+  expect_error( check_update( copy(old)[1, dividend := 0], new)) # Yahoo dividends are split adjusted
+  expect_error( check_update( copy(old)[1, rawvalue := 0], new))
+  expect_true( check_update( copy(old)[1, Adjusted := 0], new) ) # Adjusted from yahoo is not checked because it does change
+  
+  pre_split <- new[1:2,]
+  pre_split[, dividend := rawdividend] # If old from yahoo was before a split, its split-adjusted dividends won't have an adjustment
+  pre_split[, rawvalue := Close * rawshares + cumsum(rawdividend)]
+  expect_true( check_update(pre_split, new) )
+})
+
+

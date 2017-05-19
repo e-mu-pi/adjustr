@@ -36,7 +36,7 @@ For example, a dividend of 0.2 that occured before a 2:1 split would be reported
 NULL, i.e., just use the first ticks from the other data vectors. If used, the first 
 dividend will be included.}
 
-\item{price_data_xts}{An \code{xts} object with columns \code{close, rawshares, rawdividend}
+\item{price_data_xts}{An \code{xts} object with columns \code{Close, rawshares, rawdividend}
 or with a symbol \code{SYM}, columns \code{SYM.Close, SYM.Rawshares, SYM.Rawdividend}.}
 
 \item{period}{A string indicating a granularity. See \code{\link[quantmod]{periodReturn}}.}

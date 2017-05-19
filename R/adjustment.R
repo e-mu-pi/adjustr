@@ -6,23 +6,93 @@ needs_symbol <- function(x) any( grepl(".", names(x), fixed=TRUE) )
 #' Retrieve stock prices as data.table
 #' 
 #' \code{getDTSymbols} adapts \code{quantmod::getSymbols} to convert
-#' results to \code{data.table}. 
+#' results to \code{data.table}.
 #' 
 #' @param x A symbol or list of symbols to retrieve from Yahoo and adjust.
 #' @param ... Additional arguments passed to quantmod::getSymbols.
+#' @param cache  Whether to check cache for data before calling quantmod::getSymbols.
 #' 
 #' @return A \code{data.table} of data for input symbols with adjustments.
 #' 
 #' @export
-getDTSymbols <- function(x, ...) {
-  getSymbols <- quantmod::getSymbols # getSymbols doesn't expect to see the 
-  # package name when it retrieves its defaults (gives a warning).
-  # Do this rather than importing getSymbols.
-  price <- getSymbols(x, ...)
-  splits <- quantmod::getSplits(x, ...)
-  dividends <- quantmod::getDividends(x, ...)
-  raw <- make_raw_value(price, splits, dividends)
-  gather_symbol( as.data.table(raw) )
+getDTSymbols <- function(x, ..., cache=TRUE) {
+  argg <- c(as.list(environment()), list(...))
+  get_arg <- function(var) {
+    if( var %in% argg ) {
+      value <- get(var)
+    } else {
+      value <- formals(quantmod::getSymbols.yahoo)[[var]]
+    }
+    eval(value)
+  }
+  start_date <- get_arg("from")
+  end_date <- get_arg("to")
+  
+  results <- list()
+  for( symbol in x ) {
+    cache_file <- get_cache_file(symbol, start_date)
+    found_end_date <- as.Date("1000-01-01")
+    cache_exists <- file.exists(cache_file)
+    if( cache_exists ) {
+      data <- load_cache(cache_file, symbol, start_date)
+      found_end_date <- data[, max(index)]
+    } 
+    if( found_end_date < end_date ) {
+      getSymbols <- quantmod::getSymbols # getSymbols doesn't expect to see the 
+      # package name when it retrieves its defaults (gives a warning).
+      # Do this rather than importing getSymbols.
+      price <- getSymbols(x, ...)
+      splits <- quantmod::getSplits(x, ...)
+      dividends <- quantmod::getDividends(x, ...)
+      raw <- make_raw_value(price, splits, dividends)
+      new_data <- gather_symbol( as.data.table(raw) )
+      if( nrow(new_data) > 0 ) {
+        if( cache_exists )
+          check_update(data, new_data)
+        save_cache(new_data, cache_file)
+        data <- new_data
+      }
+      if( data[, max(index)] < end_date ) {
+        warning(symbol, " data stops at ", found_end_date)
+      }
+    }
+    results[[symbol]] <- data
+  }
+  rbindlist(results)
+}
+
+#' Compare whether two data sets agree on overlap.
+#' 
+#' \code{check_update} compares the loaded data for two data sets to 
+#' make sure that the second is an update of the first. Throws an error
+#' if the is something nontrivial in the update.
+#' 
+#' @param old  Older, presumably smaller set of data.
+#' @param new  Newer, presumably bigger set of data.
+#' 
+#' @return TRUE if the sets agree on the overlap.
+check_update <- function(old, new) {
+  stopifnot( key(old) == key(new))
+  overlap <- new[old, on=key(old)]
+  # cols_to_match <- c("Close", "split")
+  mismatch <- overlap[, which(Close != i.Close || split != i.split || rawvalue != i.rawvalue)]
+  # Now check dividend, which may be adjusted differently if there
+  # are splits in new that are not in old
+  # rawshares <- overlap[, 1/cumprod(split)]
+  dividends <- new[, c(key(new), "dividend"), with=FALSE]
+  dividends[, rawshares := new[, 1/cumprod(split)] ]
+  dividends[, retroactive_shares := last(rawshares) / rawshares]
+  raw_dividends <- dividends[old, retroactive_shares*dividend, on=key(old)]
+  old_rawshares <- overlap[, 1/cumprod(i.split)]
+  old_retroactive_shares <- last(old_rawshares) / old_rawshares
+  readjusted_dividends <- raw_dividends / old_retroactive_shares
+  dividend_mismatch <- which(readjusted_dividends != overlap[, i.dividend])
+  total_mismatch <- sort( c( mismatch, dividend_mismatch) )
+  if( length(total_mismatch) > 0 ) {
+    stop("New data is not an update of old data. Check cache via load_cache vs. getDTSymbols(...,cache=FALSE): ", 
+         overlap[total_mismatch[1], key(old), with=FALSE])
+  }
+  TRUE
 }
 
 #' Turn splits into evolution of single share.

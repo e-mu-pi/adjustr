@@ -1,5 +1,6 @@
 context("xts")
 library(xts)
+library(quantmod)
 library(data.table)
 
 make_data_table <- function(string_table) {
@@ -138,4 +139,70 @@ test_that("getDTSymbols returns getSymbols as data.table with splits and dividen
   # can't seem to pass attributes using as.xts
   #   expect_that( as.xts(actual, xtsAttributes(raw)), 
   #              equals(raw[,alpha_order]) )
+})
+
+test_that("getDTSymbols works on multiple symbols like getSymbols",{
+  symbol <- c("AAPL", "MSFT")
+  actual <- getDTSymbols(symbol, auto.assign=TRUE)
+  
+  getSymbols <- quantmod::getSymbols # getSymbols doesn't expect to see the 
+  # package name when it retrieves its
+  # defaults (gives a warning)
+  # Do this rather than attaching quantmod.
+  price <- getSymbols(symbol)
+  splits <- quantmod::getSplits(symbol)
+  dividends <- quantmod::getDividends(symbol)
+  raw <- make_raw_value(price, splits, dividends)
+  expected <- gather_symbol( as.data.table( raw ) )
+  
+  expect_that( actual,
+               equals( expected ) )
+  
+  alpha_order <- c("AAPL.Adjusted", "AAPL.Close", 
+                   "AAPL.dividend",
+                   "AAPL.High", "AAPL.Low", "AAPL.Open", 
+                   "AAPL.rawdividend", "AAPL.rawshares", "AAPL.rawvalue",
+                   "AAPL.split", "AAPL.Volume",
+                   "MSFT.Adjusted", "MSFT.Close", 
+                   "MSFT.dividend",
+                   "MSFT.High", "MSFT.Low", "MSFT.Open", 
+                   "MSFT.rawdividend", "MSFT.rawshares", "MSFT.rawvalue",
+                   "MSFT.split", "MSFT.Volume")
+  expect_that( as.xts( spread_symbol(actual) ), 
+               equals(raw[,alpha_order], check.attributes = FALSE) )
+  # can't seem to pass attributes using as.xts
+  #   expect_that( as.xts(actual, xtsAttributes(raw)), 
+  #              equals(raw[,alpha_order]) )
+})
+
+test_that("getDTSymbols uses cache file",{
+  symbol <- "AAPL"
+  start_date <- as.Date("2017-05-15")
+  end_date <- as.Date("2017-05-15")
+  
+  cache_file <- get_cache_file(symbol, start_date)
+  if( file.exists(cache_file) ) file.remove(cache_file)
+  
+  results <- getDTSymbols(symbol, from=start_date, to=end_date)
+  
+  expect_true( file.exists(cache_file) )
+  
+  with_mock(
+    `quantmod::getSymbols` <- function(x,...) stop("Don't call getSymbols again"),
+    expect_equal( getDTSymbols(symbols, from=start_date, to=end_date),
+                  results)
+  )
+})
+
+test_that("getDTSymbols may bypass cache file",{
+  symbol <- "AAPL"
+  start_date <- as.Date("2017-05-15")
+  end_date <- as.Date("2017-05-15")
+  
+  cache_file <- get_cache_file(symbol, start_date)
+  if( file.exists(cache_file) ) file.remove(cache_file)
+  
+  results <- getDTSymbols(symbol, from=start_date, to=end_date, cache=FALSE)
+  
+  expect_false( file.exists(cache_file) )
 })

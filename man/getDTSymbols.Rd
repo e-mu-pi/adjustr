@@ -4,12 +4,14 @@
 \alias{getDTSymbols}
 \title{Retrieve stock prices as data.table}
 \usage{
-getDTSymbols(x, ...)
+getDTSymbols(x, ..., cache = TRUE)
 }
 \arguments{
 \item{x}{A symbol or list of symbols to retrieve from Yahoo and adjust.}
 
 \item{...}{Additional arguments passed to quantmod::getSymbols.}
+
+\item{cache}{Whether to check cache for data before calling quantmod::getSymbols.}
 }
 \value{
 A \code{data.table} of data for input symbols with adjustments.
