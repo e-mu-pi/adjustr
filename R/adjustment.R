@@ -76,6 +76,7 @@ getDTSymbols <- function(x, ..., cache=TRUE) {
 #' 
 #' @return TRUE if the sets agree on the overlap.
 check_update <- function(old, new) {
+  DIVIDEND_PRECISION <- 1e-12
   stopifnot( key(old) == key(new))
   overlap <- new[old, on=key(old)]
   # cols_to_match <- c("Close", "split")
@@ -90,7 +91,7 @@ check_update <- function(old, new) {
   old_rawshares <- overlap[, 1/cumprod(i.split)]
   old_retroactive_shares <- last(old_rawshares) / old_rawshares
   readjusted_dividends <- raw_dividends / old_retroactive_shares
-  dividend_mismatch <- which(readjusted_dividends != overlap[, i.dividend])
+  dividend_mismatch <- which( abs( readjusted_dividends - overlap[, i.dividend]) > DIVIDEND_PRECISION)
   total_mismatch <- sort( c( mismatch, dividend_mismatch) )
   if( length(total_mismatch) > 0 ) {
     stop("New data is not an update of old data. Check cache via load_cache vs. getDTSymbols(...,cache=FALSE): ", 
