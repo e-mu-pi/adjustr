@@ -22,7 +22,7 @@ load_cache <- function(cache_file) {
 #
 save_cache <- function(data, cache_file) {
   # Could manage cache size here.
-  save(data, cache_file)
+  save(data, file=cache_file)
 }
 
 # File in which to cache symbol data
@@ -38,7 +38,7 @@ get_cache_file <- function(symbol, start_date) {
   cache_dir <- get_cache_dir()
   file.path(cache_dir, 
             paste( paste(symbol,
-                         format(start_date, format="%Y%m%d"),
+                         format(as.Date(start_date), format="%Y%m%d"),
                          sep="_"),
                    "Rdata",
                    sep="."))

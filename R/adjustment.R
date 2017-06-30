@@ -16,12 +16,13 @@ needs_symbol <- function(x) any( grepl(".", names(x), fixed=TRUE) )
 #' 
 #' @export
 getDTSymbols <- function(x, ..., cache=TRUE) {
-  argg <- c(as.list(environment()), list(...))
+  argg <- list(...)
   get_arg <- function(var) {
-    if( var %in% argg ) {
-      value <- get(var)
+    expr <- substitute(hasArg(y), list(y=var))
+    if( eval(expr, parent.frame()) ) {
+      value <- argg[[var]]
     } else {
-      value <- formals(quantmod::getSymbols.yahoo)[[var]]
+      value <- formals(quantmod::getSymbols.yahoo)[[var]] # TODO move away from yahoo default
     }
     eval(value)
   }
@@ -34,25 +35,28 @@ getDTSymbols <- function(x, ..., cache=TRUE) {
     found_end_date <- as.Date("1000-01-01")
     cache_exists <- file.exists(cache_file)
     if( cache_exists ) {
-      data <- load_cache(cache_file, symbol, start_date)
-      found_end_date <- data[, max(index)]
+      data <- load_cache(cache_file)
+      found_end_date <- data[, max(index)] + 1 # yahoo end date is non-inclusive
     } 
     if( found_end_date < end_date ) {
       getSymbols <- quantmod::getSymbols # getSymbols doesn't expect to see the 
       # package name when it retrieves its defaults (gives a warning).
       # Do this rather than importing getSymbols.
-      price <- getSymbols(x, ...)
-      splits <- quantmod::getSplits(x, ...)
-      dividends <- quantmod::getDividends(x, ...)
+      price <- getSymbols(symbol, ...)
+      splits <- quantmod::getSplits(symbol, ...)
+      dividends <- quantmod::getDividends(symbol, ...)
       raw <- make_raw_value(price, splits, dividends)
       new_data <- gather_symbol( as.data.table(raw) )
+      setkey(new_data, symbol, index)
       if( nrow(new_data) > 0 ) {
         if( cache_exists )
           check_update(data, new_data)
-        save_cache(new_data, cache_file)
+        if( cache ) 
+          save_cache(new_data, cache_file)
         data <- new_data
+        found_end_date <- data[, max(index)] + 1 # yahoo end date is non-inclusive
       }
-      if( data[, max(index)] < end_date ) {
+      if( found_end_date < end_date ) {
         warning(symbol, " data stops at ", found_end_date)
       }
     }
