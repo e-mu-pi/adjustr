@@ -1084,9 +1084,9 @@ test_that("check_update throws an error when new data is incompatible with old",
   old <- new[1:4,]
   expect_true( check_update(old, new) )
   expect_error( check_update( copy(old)[1, Close := 0], new))
-  expect_error( check_update( copy(old)[1, split := 0], new))
-  expect_error( check_update( copy(old)[1, dividend := 0], new)) # Yahoo dividends are split adjusted
-  expect_error( check_update( copy(old)[1, rawvalue := 0], new))
+  expect_error( check_update( copy(old)[2, dividend := 0], new)) # Yahoo dividends are split adjusted
+  expect_error( check_update( copy(old)[3, split := 0], new))
+  expect_error( check_update( copy(old)[4, rawvalue := 0], new))
   expect_true( check_update( copy(old)[1, Adjusted := 0], new) ) # Adjusted from yahoo is not checked because it does change
   
   pre_split <- new[1:2,]
@@ -1095,4 +1095,20 @@ test_that("check_update throws an error when new data is incompatible with old",
   expect_true( check_update(pre_split, new) )
 })
 
+test_that("check_update accepts new data that introduces dividend on last day of old",{
+  # Yahoo will give out closes before dividends are known I guess
+  new <- make_data_table("index Close split rawshares rawvalue dividend rawdividend Adjusted
+                         2015-03-17  50    1     1          52        1        2   23.229     
+                         2015-03-18  52    1     1          55        0.5      1   24.623
+                         2015-03-19  24    0.5   2          50        0        0   22.729   
+                         2015-03-20  27    1     2          59        1.5      1.5 26.491
+                         2015-03-21  26    1     2          58        0.5      0.5 26")
+  setkey(new, index)
+  old <- new[1:4,]
+  old[4, dividend := 0] # in new, it's 1.5, and rawshares=2, so contributes 3 to  rawvalue=59
+  old[4, rawvalue := 56]
+  expect_warning( check_update(old, new), "Cache was missing dividend on 2015-03-20. Raw value increased from 56 to 59." )
+  expect_error( check_update( copy(old)[4, rawvalue := 57], new))
+  expect_error( check_update( copy(old)[4, `:=`(dividend := 0.5, rawvalue := 57)], new))
+})
 

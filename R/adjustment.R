@@ -80,7 +80,7 @@ check_update <- function(old, new) {
   stopifnot( key(old) == key(new))
   overlap <- new[old, on=key(old)]
   # cols_to_match <- c("Close", "split")
-  mismatch <- overlap[, which(Close != i.Close || split != i.split || rawvalue != i.rawvalue)]
+  mismatch <- overlap[, which(Close != i.Close | split != i.split | rawvalue != i.rawvalue)]
   # Now check dividend, which may be adjusted differently if there
   # are splits in new that are not in old
   # rawshares <- overlap[, 1/cumprod(split)]
@@ -92,6 +92,27 @@ check_update <- function(old, new) {
   old_retroactive_shares <- last(old_rawshares) / old_rawshares
   readjusted_dividends <- raw_dividends / old_retroactive_shares
   dividend_mismatch <- which( abs( readjusted_dividends - overlap[, i.dividend]) > DIVIDEND_PRECISION)
+  last_old_index <- nrow(overlap)
+  # Exclude mismatches if the last line of the cache didn't get the dividend at the time of creation
+  if( last_old_index %in% dividend_mismatch && #  dividend mismatch
+      last_old_index %in% mismatch ) { # rawvalue mismatch
+    last_old <- overlap[last_old_index,]
+    if( last_old[,i.dividend==0 && abs(rawvalue - rawshares * dividend - i.rawvalue) < DIVIDEND_PRECISION ] ) {
+      key_str <- vapply(key(old), function(key_col) {
+        as.character(last_old[[ key_col]])
+      }, "") # want to get date string formatted
+      warning_message <- paste0("Cache was missing dividend on ",
+                                paste(key_str, collapse=", "),
+                                ". Raw value increased from ",
+                                last_old[,i.rawvalue],
+                                " to ",
+                                last_old[,rawvalue],
+                                ".")
+      warning(warning_message)
+      mismatch <- setdiff(mismatch, last_old_index)
+      dividend_mismatch <- setdiff(dividend_mismatch, last_old_index)
+    }
+  }
   total_mismatch <- sort( c( mismatch, dividend_mismatch) )
   if( length(total_mismatch) > 0 ) {
     first_mismatch <- overlap[total_mismatch[1], key(old), with=FALSE]
