@@ -49,7 +49,7 @@ getDTSymbols <- function(x, ..., cache=TRUE) {
       new_data <- gather_symbol( as.data.table(raw) )
       setkey(new_data, symbol, index)
       if( nrow(new_data) > 0 ) {
-        if( cache_exists )
+        if( cache && cache_exists )
           check_update(data, new_data)
         if( cache ) 
           save_cache(new_data, cache_file)

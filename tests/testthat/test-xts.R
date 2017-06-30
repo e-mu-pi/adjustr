@@ -194,7 +194,7 @@ test_that("getDTSymbols uses cache file",{
   )
 })
 
-test_that("getDTSymbols may bypass cache file",{
+test_that("getDTSymbols works without cache file",{
   symbol <- "AAPL"
   start_date <- as.Date("2017-05-15")
   end_date <- as.Date("2017-05-16")
@@ -203,6 +203,18 @@ test_that("getDTSymbols may bypass cache file",{
   if( file.exists(cache_file) ) file.remove(cache_file)
   
   results <- getDTSymbols(symbol, from=start_date, to=end_date, cache=FALSE)
-  
   expect_false( file.exists(cache_file) )
+})
+
+test_that("getDTSymbols may bypass cache file, skip check_update",{
+  # Need something that fails check_update to test this properly
+  symbol <- "AAPL"
+  start_date <- as.Date("2017-05-15")
+  end_date <- as.Date("2017-05-16")
+  
+  # First, seed cache file
+  cached_results <- getDTSymbols(symbol, from=start_date, to=end_date)
+  # Then load without accessing cache...can't prove it, but making sure no errors are thrown (bug fixed)
+  fresh_results <- getDTSymbols(symbol, from=start_date, to=end_date, cache=FALSE)
+  expect_equal(fresh_results, cached_results)
 })
