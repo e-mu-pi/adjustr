@@ -94,8 +94,11 @@ check_update <- function(old, new) {
   dividend_mismatch <- which( abs( readjusted_dividends - overlap[, i.dividend]) > DIVIDEND_PRECISION)
   total_mismatch <- sort( c( mismatch, dividend_mismatch) )
   if( length(total_mismatch) > 0 ) {
+    first_mismatch <- overlap[total_mismatch[1], key(old), with=FALSE]
+    problems <- rbind( old[first_mismatch][, version := "cached"], new[first_mismatch][, version := "new"])
+    problems_str <- paste0("\n", paste(capture.output(print(problems)), collapse="\n"))
     stop("New data is not an update of old data. Check cache via load_cache vs. getDTSymbols(...,cache=FALSE): ", 
-         overlap[total_mismatch[1], key(old), with=FALSE])
+         problems_str)
   }
   TRUE
 }
@@ -443,7 +446,7 @@ make_raw_value <- function(price_data, splits, dividend, ...) {
     }
   }
   if( is_xts ) {
-    price <- as.xts(spread_symbol(price))
+    price <- xts::as.xts(spread_symbol(price))
     xts::xtsAttributes(price) <- xts_attr
   }
   price
@@ -538,7 +541,7 @@ make_raw_return.xts <- function(price_data_xts, period = 'monthly', ...) {
   if ( period == 'daily' ) {
     initial_zero_to_match_quantmod <- data.table(index = index(price_data_xts[1,]),
                                                  rawreturn = 0)
-    raw_ret <- as.xts( rbind( initial_zero_to_match_quantmod,
+    raw_ret <- xts::as.xts( rbind( initial_zero_to_match_quantmod,
                               raw_ret_dt ) )
   } else {
     # dt version gives intermediate returns between start and end
@@ -546,7 +549,7 @@ make_raw_return.xts <- function(price_data_xts, period = 'monthly', ...) {
     # end_points[-1]: remove initial starting point
     # -1: indexing is off by 1 because make_raw_return will not have a return on the
     # first tick
-    raw_ret <- as.xts( raw_ret_dt[end_points[-1]-1,] ) 
+    raw_ret <- xts::as.xts( raw_ret_dt[end_points[-1]-1,] ) 
   }
   colnames(raw_ret) <- paste(period, "rawreturn", sep = "_")
   raw_ret
@@ -847,7 +850,7 @@ make_reinvested_return.xts <- function(price_data, period = 'monthly', ...) {
   if ( period == 'daily' ) {
     initial_zero_to_match_quantmod <- data.table(index = index(price_data[1,]),
                                                  reinvested_return = 0)
-    reinvested_ret <- as.xts( rbind( initial_zero_to_match_quantmod,
+    reinvested_ret <- xts::as.xts( rbind( initial_zero_to_match_quantmod,
                               reinvested_ret_dt ) )
   } else {
     # dt version gives intermediate returns between start and end
@@ -855,7 +858,7 @@ make_reinvested_return.xts <- function(price_data, period = 'monthly', ...) {
     # end_points[-1]: remove initial starting point
     # -1: indexing is off by 1 because make_reinvested_return will not have a return on the
     # first tick
-    reinvested_ret <- as.xts( reinvested_ret_dt[end_points[-1]-1,] ) 
+    reinvested_ret <- xts::as.xts( reinvested_ret_dt[end_points[-1]-1,] ) 
   }
   colnames(reinvested_ret) <- paste(period, "reinvested_return", sep = "_")
   reinvested_ret
