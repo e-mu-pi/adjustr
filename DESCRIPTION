@@ -1,7 +1,7 @@
 Package: adjustr
 Type: Package
 Title: Adjust Stock Price Data for Splits and Dividends
-Version: 0.1.0
+Version: 0.1.1
 Date: 2015-03-13
 Author: EMP <e-mu-pi@users.noreply.github.com>
 Maintainer: EMP <e-mu-pi@users.noreply.github.com>
