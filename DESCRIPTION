@@ -18,7 +18,7 @@ License: GPL-3
 URL: https://github.com/e-mu-pi/adjustr
 BugReports: https://github.com/e-mu-pi/adjustr/issues
 Imports:
-    quantmod (>= 0.4-4),
+    quantmod (>= 0.4-10),
     data.table (>= 1.9.4),
     dplyr (>= 0.4.1),
     tidyr (>= 0.1),
