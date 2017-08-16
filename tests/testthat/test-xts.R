@@ -122,6 +122,7 @@ test_that("getDTSymbols returns getSymbols as data.table with splits and dividen
   # Do this rather than attaching quantmod.
   price <- getSymbols(symbol)
   splits <- quantmod::getSplits(symbol)
+  price <- remove_autosplit(price, splits)
   dividends <- quantmod::getDividends(symbol)
   raw <- make_raw_value(price, splits, dividends)
   expected <- gather_symbol( as.data.table( raw ) )
