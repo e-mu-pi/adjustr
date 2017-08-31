@@ -1,6 +1,33 @@
 #' @import data.table
 NULL
 
+#' Unsplit the Close from an xts
+#' 
+#' \code{remove_autosplit} allows \code{quantmod::getSymbols.yahoo} to
+#' return closes that are not split adjusted. There is no change
+#' in \code{quantmod}, but Yahoo has changed what they return.
+#' 
+#' @param prices  An xts with a Close as in quantmod.
+#' @param splits  An xts with the splits for the prices.
+#' 
+#' @return The xts with the splits undone.
+#' 
+#' @export
+remove_autosplit <- function(prices, splits) {
+  all_dates <- unique(sort(c(zoo::index(prices), zoo::index(splits))))
+  n_dates <- length(all_dates)
+  shares <- xts::xts(rep(1, n_dates), order.by=all_dates)
+  shares[zoo::index(splits),] <- 1/splits
+  shares <- stats::lag(shares, k=-1)
+  shares[n_dates,] <- 1 # lag introduces NA at most recent date
+  cumshares <- xts::xts( rev( cumprod( rev( drop( zoo::coredata(shares) ) ) ) ),
+                         order.by = zoo::index(shares))
+  close_col <- grep("close", colnames(prices), ignore.case=TRUE)
+  unsplit_prices <- prices
+  unsplit_prices[,close_col] <- prices[,close_col] * cumshares[zoo::index(prices),]
+  unsplit_prices
+}
+
 needs_symbol <- function(x) any( grepl(".", names(x), fixed=TRUE) )
 
 #' Retrieve stock prices as data.table
@@ -44,6 +71,7 @@ getDTSymbols <- function(x, ..., cache=TRUE) {
       # Do this rather than importing getSymbols.
       price <- getSymbols(symbol, ...)
       splits <- quantmod::getSplits(symbol, ...)
+      price <- remove_autosplit(price, splits) # Yahoo has started returning split-adjusted closes
       dividends <- quantmod::getDividends(symbol, ...)
       raw <- make_raw_value(price, splits, dividends)
       new_data <- gather_symbol( as.data.table(raw) )
