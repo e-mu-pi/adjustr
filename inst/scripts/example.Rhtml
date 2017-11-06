@@ -1,0 +1,60 @@
+<html>
+
+<head>
+<title>Title</title>
+</head>
+
+<body>
+<!--begin.rcode echo=FALSE
+options("getSymbols.warning4.0" = FALSE)
+options(download.file.method = "curl")
+library(knitr)
+suppressPackageStartupMessages(library(xts)) #tells you it's loading zoo
+library(TTR)
+suppressPackageStartupMessages(library(data.table)) # hides last in xts
+suppressPackageStartupMessages(library(quantmod)) # tells you which getSymbols defaults are used
+library(largescalemomentum)
+opts_chunk$set(fig.width=7, fig.height=5, echo = FALSE)
+end.rcode-->
+
+<!-- <p>You could write something here.</p> -->
+
+<!--begin.rcode
+# plot_fn <- function(x, y) {
+#   message("calling ", x)
+# #   par(new = TRUE)
+#   plot(rnorm(y),
+#        main = x)
+# }
+# plot_fn2 <- function(grps, y) {
+#   message("calling ", grps$x)
+#   plot(rnorm(y),
+#        main = grps$x)
+# }
+# data_list <- list( few = 10, many = 1000)
+# lapply(names(data_list), function(s) {plot_fn(s, data_list[[s]])})
+# data_table <- data.table( x = c("few", "many"), y = c(10, 1000))
+# data_table[, plot_fn(x, y), by = x]
+# data_table[, plot_fn2(.BY, y), by = x]
+# start_dates <- list(VUSUX = "2001-02-12",
+#                     VNQ = "2004-09-29",
+#                     VB = "2004-01-30",
+#                     VGK = "2005-03-10",
+#                     VPL = "2005-03-10",
+#                     VEA = "2007-07-26",
+#                     DBC = "2006-02-06",
+#                     VWO = "2005-03-10",
+#                     VEMAX = "2006-06-23",
+#                     VFSUX = "2001-02-12",
+#                     VFIRX = "2001-02-13")
+# hide_data <- lapply(names(start_dates), function(symbol) { plot_with_ma(symbol, start_dates[[symbol]]) } )
+# symbol_file <- system.file("scripts","default_etfs.csv", package = "largescalemomentum")
+symbol_file <- file.path('/home', 'epatterson','Documents','data','my_symbols.csv')
+symbols <- fread(symbol_file)
+# hide_data <- symbols[, plot_with_ma(symbol, start_date), by = symbol] #gets the labelling wrong...why?
+hide_data <- lapply(symbols[,symbol], function(x) { plot_with_ma(x, symbols[symbol == x, start_date])})
+end.rcode-->
+
+
+</body>
+</html>
