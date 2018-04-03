@@ -7,12 +7,16 @@ library(adjustr)
 shinyServer( function(input, output) {
   
   price_data <- reactive({
-    x <- getDTSymbols(input$symbol, 
+    # x <- getDTSymbols(input$symbol,
+    y <- getDTSymbols(input$symbol,
                  from = input$date_range[1], 
                  to = input$date_range[2])
-    splits <- getSplits(input$symbol)
-    dividends <- getDividends(input$symbol)
-    y <- make_raw_value(x, dividends, splits = splits)
+    # splits <- getSplits(input$symbol)
+    # dividends <- getDividends(input$symbol)
+    # y <- make_raw_value(x, dividends, splits = splits)
+    y[, close := Close]
+    y[, adjusted := Adjusted]
+    # y[, first_close := first(close)] # data.table seems to be dispatching to xts::first
     y[, close_return := ( close - first(close) ) / first(close) ]
     y[, adjusted_return := ( adjusted - first(adjusted) ) / first(adjusted)]
     y[, raw_return := make_raw_return(close, rawshares, rawdividend) ]
