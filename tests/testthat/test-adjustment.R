@@ -155,7 +155,7 @@ test_that("unadjust works with extraneous columns",{
                throws_error("can't fill non-dividend columns") )
 
   cant_fill_splits <- copy(dividend)
-  cant_fill_splits[, index := as.Date( "2015-03-15", "2015-03-18", "2015-03-21")]
+  cant_fill_splits[, index := as.Date(c("2015-03-15", "2015-03-18", "2015-03-21"))]
   expect_that( unadjust( cant_fill_splits, price_data),
              throws_error("can't fill non-split columns") )
 
@@ -168,8 +168,11 @@ test_that("unadjust works with extraneous columns",{
   expect_that( unadjust( dividend_xts, price_data_xts),
                equals( expected_xts[, dividend_first] ))
   nontrivial_splits <- price_data_xts[,"splits"] != 1
-  expect_that( unadjust( expected_xts[,c("index","symbol", "Close", "dividend")],
-                         price_data_xts[nontrivial_splits,c("index", "splits")]),
+  # expect_that( unadjust( expected_xts[,c("index","symbol", "Close", "dividend")],
+  #                        price_data_xts[nontrivial_splits,c("index", "splits")]),
+  #              equals(expected_xts) )
+  expect_that( unadjust( expected_xts[,c("Close", "dividend")],
+                         price_data_xts[nontrivial_splits,"splits"]),
                equals(expected_xts) )
   
   cant_fill_dividend_xts <- copy(dividend)
