@@ -13,7 +13,8 @@ suppressPackageStartupMessages(library(xts)) #tells you it's loading zoo
 library(TTR)
 suppressPackageStartupMessages(library(data.table)) # hides last in xts
 suppressPackageStartupMessages(library(quantmod)) # tells you which getSymbols defaults are used
-library(largescalemomentum)
+#library(largescalemomentum)
+source('plot-tools.R')
 opts_chunk$set(fig.width=7, fig.height=5, echo = FALSE)
 end.rcode-->
 
@@ -49,7 +50,7 @@ end.rcode-->
 #                     VFIRX = "2001-02-13")
 # hide_data <- lapply(names(start_dates), function(symbol) { plot_with_ma(symbol, start_dates[[symbol]]) } )
 # symbol_file <- system.file("scripts","default_etfs.csv", package = "largescalemomentum")
-symbol_file <- file.path('/home', 'epatterson','Documents','data','my_symbols.csv')
+symbol_file <- file.path('~','Documents','data','my_symbols.csv')
 symbols <- fread(symbol_file)
 # hide_data <- symbols[, plot_with_ma(symbol, start_date), by = symbol] #gets the labelling wrong...why?
 hide_data <- lapply(symbols[,symbol], function(x) { plot_with_ma(x, symbols[symbol == x, start_date])})

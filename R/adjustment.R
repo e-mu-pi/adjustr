@@ -28,6 +28,21 @@ remove_autosplit <- function(prices, splits) {
   unsplit_prices
 }
 
+clean_duplicate_dates <- function(x) {
+  `%>%` <- magrittr::`%>%`
+  dates <- x %>% as.data.frame %>% row.names %>% as.Date
+  with_dates <- x %>% as.data.frame %>% dplyr::mutate(Date=dates)
+  date_count <- with_dates %>% dplyr::count(Date)
+  duplicates <- (date_count %>% dplyr::pull(n)) > 1
+  if( any(duplicates) ) {
+    warning(paste0("Multiple rows for dates ", date_count %>% dplyr::filter(duplicates)))
+  }
+  y <- with_dates %>%
+    dplyr::group_by(Date) %>%
+    dplyr::slice(dplyr::n()) %>%
+    dplyr::ungroup()
+  xts::as.xts(dplyr::select(y, -Date), order.by=y[["Date"]])
+}
 needs_symbol <- function(x) any( grepl(".", names(x), fixed=TRUE) )
 
 #' Retrieve stock prices as data.table
@@ -72,6 +87,7 @@ getDTSymbols <- function(x, ..., cache=TRUE) {
       price <- getSymbols(symbol, ...)
       splits <- quantmod::getSplits(symbol, ...)
       price <- remove_autosplit(price, splits) # Yahoo has started returning split-adjusted closes
+      price <- clean_duplicate_dates(price)
       dividends <- quantmod::getDividends(symbol, ...)
       raw <- make_raw_value(price, splits, dividends)
       new_data <- gather_symbol( as.data.table(raw) )

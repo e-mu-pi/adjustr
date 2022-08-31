@@ -16,6 +16,7 @@ shinyServer( function(input, output) {
 #     splits <- getSplits(symbol)
 #     dividends <- getDividends(symbol)
 #     y <- make_raw_value(x, dividends, splits = splits)
+    y[, adjusted := Adjusted]
     y[, raw_slow_ema := EMA(as.matrix(rawvalue), 100)]
     y[, raw_fast_ema := EMA(as.matrix(rawvalue), 20)]
     y[, adjusted_slow_ema := EMA(as.matrix(adjusted), 100)]
@@ -32,7 +33,7 @@ shinyServer( function(input, output) {
                  index <= input$date_range[2],]
   })
 
-  output$return_values <- renderDataTable( range_data() )
+  output$return_values <- renderDataTable( range_data()[order(index, decreasing = TRUE)])
 
   output$raw_signal_plot <- renderPlot({
     plot_data <- copy(range_data())
