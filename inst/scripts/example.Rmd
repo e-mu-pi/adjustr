@@ -13,11 +13,12 @@ header-includes:
 
 ```{r setup, include=FALSE, purl=FALSE, echo=FALSE}
 knitr::opts_chunk$set(echo=FALSE)
-devtools::dev_mode(on=TRUE) # currently quantmod and largescalemomentum are not on master
+# devtools::dev_mode(on=TRUE) # currently quantmod and largescalemomentum are not on master
 library(xts)
 library(data.table)
 library(ggplot2)
-library(largescalemomentum)
+# library(largescalemomentum)
+source('plot-tools.R')
 ```
 
 ## Trends in Selected Symbols
@@ -27,11 +28,15 @@ symbol_file <- file.path('~','Documents','data','my_symbols.csv')
 symbols <- fread(symbol_file)
 # hide_data <- symbols[, plot_with_ma(symbol, start_date), by = symbol] #gets the labelling wrong...why?
 # hide_data <- lapply(symbols[,symbol], function(x) { plot_with_ma(x, symbols[symbol == x, start_date])})
-data <- rbindlist( lapply(symbols[, symbol], function(x) load_with_ma(x, symbols[symbol==x, start_date])))
-data[, symbol_f := factor(symbol, levels=symbol)]  # Fix the ordering of the symbols so that facet_grid doesn't reorder alphabetically
+data <- rbindlist( lapply(symbols[, symbol], function(x) load_with_ma(x,
+symbols[symbol==x, start_date])))
+```
+
+```{r data, echo=FALSE, message=FALSE, warning=FALSE}
+unique_symbols <- symbols[, symbol]
+data[, symbol_f := factor(symbol, levels=unique_symbols)]  # Fix the ordering of the symbols so that facet_grid doesn't reorder alphabetically
 adjusted <- data[price_type=='adjusted',]
 symbols_per_page <- 3
-unique_symbols <- symbols[, symbol]
 symbol_start <- seq(1, length(unique_symbols), by=symbols_per_page)
 for( j in symbol_start) {
 	next_symbols <- unique_symbols[j:(j+symbols_per_page-1)]
