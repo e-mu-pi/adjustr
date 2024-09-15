@@ -32,6 +32,7 @@ clean_duplicate_dates <- function(x) {
   `%>%` <- magrittr::`%>%`
   dates <- x %>% as.data.frame %>% row.names %>% as.Date
   with_dates <- x %>% as.data.frame %>% dplyr::mutate(Date=dates)
+  Date <- n <- NULL
   date_count <- with_dates %>% dplyr::count(Date)
   duplicates <- (date_count %>% dplyr::pull(n)) > 1
   if( any(duplicates) ) {
@@ -71,6 +72,7 @@ getDTSymbols <- function(x, ..., cache=TRUE) {
   start_date <- get_arg("from")
   end_date <- get_arg("to")
   
+  index <- NULL
   results <- list()
   for( symbol in x ) {
     cache_file <- get_cache_file(symbol, start_date)
@@ -120,6 +122,8 @@ getDTSymbols <- function(x, ..., cache=TRUE) {
 #' 
 #' @return TRUE if the sets agree on the overlap.
 check_update <- function(old, new) {
+  Close <- i.Close <- i.split <- rawvalue  <- i.rawvalue <- rawshares <-
+    retroactive_shares <- dividend <- i.dividend <- NULL
   DIVIDEND_PRECISION <- 1e-12
   stopifnot( key(old) == key(new))
   overlap <- new[old, on=key(old)]
@@ -161,7 +165,7 @@ check_update <- function(old, new) {
   if( length(total_mismatch) > 0 ) {
     first_mismatch <- overlap[total_mismatch[1], key(old), with=FALSE]
     problems <- rbind( old[first_mismatch][, version := "cached"], new[first_mismatch][, version := "new"])
-    problems_str <- paste0("\n", paste(capture.output(print(problems)), collapse="\n"))
+    problems_str <- paste0("\n", paste(utils::capture.output(print(problems)), collapse="\n"))
     stop("New data is not an update of old data. Check cache via load_cache vs. getDTSymbols(...,cache=FALSE): ", 
          problems_str)
   }
@@ -225,6 +229,7 @@ unadjust.data.table <- function(split_adjusted_dividend, splits, ...) {
   stopifnot( is.data.table(splits), 
              all( c('index', 'dividend') %in% names(split_adjusted_dividend) ),
              all( c('index', 'splits') %in% names(splits) ) )
+  index <- dividend <- shares <- unadjusted_dividend <- NULL
   just_splits <- all( names(splits) %in% c('index', 'splits') )
   just_dividends <- all( names(split_adjusted_dividend) %in% c('index', 'dividend') )
   
@@ -371,6 +376,8 @@ unadjust.xts <- function(split_adjusted_dividend, splits, ...) {
 #'     
 #' @export 
 make_raw_value <- function(price_data, splits, dividend, ...) {
+  symbol <- index <- rawshares <- rawvalue <- 
+    Close <- retroactive_shares <- rawdividend <- NULL
   is_xts <- xts::is.xts(price_data)
   if( is_xts ) {
     xts_attr <- xts::xtsAttributes(price_data)
@@ -589,6 +596,7 @@ make_raw_return.default <- function(price_data, split_adjusted_shares, split_una
 #' 
 #' @export
 make_raw_return.xts <- function(price_data_xts, period = 'monthly', ...) {
+  index <- NULL
   period_opts <- list(daily = "days", weekly = "weeks", monthly = "months", 
                       quarterly = "quarters", yearly = "years", annually = "years")
   end_points <- xts::endpoints( index(price_data_xts), 
@@ -640,7 +648,8 @@ make_raw_return.xts <- function(price_data_xts, period = 'monthly', ...) {
 #' @export
 make_raw_return.data.table <- function(price_data_dt, start = 1, end = nrow(price_data_dt), ...) {
   n <- nrow(price_data_dt)
-
+  period_index <- index <- on_period <- Close <- rawshares <-
+    rawdividend <- rawreturn <- NULL
   if( xts::timeBased(end) ) {
     end_index <- price_data_dt[, which(as.IDate(index) %in% as.IDate(end)) ]
   } else {
@@ -812,7 +821,8 @@ make_reinvested_return.default <- function(price_data, split_adjusted_shares, un
 #' @export
 make_reinvested_return.data.table <- function(price_data, start = 1, end = nrow(price_data), ...) {
   n <- nrow(price_data)
-  
+  index <- period_index <- on_period <- Close <- rawshares <-
+    rawdividend <- reinvested_return <- NULL
   if( xts::timeBased(end) ) {
     end_index <- price_data[, which(as.IDate(index) %in% as.IDate(end)) ]
   } else {
@@ -898,6 +908,7 @@ make_reinvested_return.data.table <- function(price_data, start = 1, end = nrow(
 #' 
 #' @export
 make_reinvested_return.xts <- function(price_data, period = 'monthly', ...) {
+  index <- NULL
   period_opts <- list(daily = "days", weekly = "weeks", monthly = "months", 
                       quarterly = "quarters", yearly = "years", annually = "years")
   end_points <- xts::endpoints( index(price_data), 

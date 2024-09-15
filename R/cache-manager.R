@@ -6,6 +6,7 @@
 #
 # @return data.table of cached results
 load_cache <- function(cache_file) {
+  data <- NULL
   loaded_names <- load(cache_file)
   if( ! "data" %in% loaded_names ) {
     stop("No data found in cache file: ", cache_file)
