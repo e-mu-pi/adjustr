@@ -21,9 +21,11 @@ Imports:
     quantmod (>= 0.4-10),
     data.table (>= 1.9.4),
     dplyr (>= 0.4.1),
+    magrittr,
     tidyr (>= 0.1),
     xts (>= 0.9-7),
     zoo (>= 1.7-11)
 Suggests:
-    testthat (>= 0.9.1)
+    testthat (>= 0.9.1),
+    curl
 RoxygenNote: 6.0.1
