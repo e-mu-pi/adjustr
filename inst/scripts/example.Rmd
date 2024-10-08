@@ -13,11 +13,10 @@ header-includes:
 
 ```{r setup, include=FALSE, purl=FALSE, echo=FALSE}
 knitr::opts_chunk$set(echo=FALSE)
-devtools::dev_mode(on=TRUE) # currently quantmod and largescalemomentum are not on master
 library(xts)
 library(data.table)
 library(ggplot2)
-library(largescalemomentum)
+# library(largescalemomentum)
 ```
 
 ## Trends in Selected Symbols
@@ -28,7 +27,7 @@ symbols <- fread(symbol_file)
 # hide_data <- symbols[, plot_with_ma(symbol, start_date), by = symbol] #gets the labelling wrong...why?
 # hide_data <- lapply(symbols[,symbol], function(x) { plot_with_ma(x, symbols[symbol == x, start_date])})
 data <- rbindlist( lapply(symbols[, symbol], function(x) load_with_ma(x, symbols[symbol==x, start_date])))
-data[, symbol_f := factor(symbol, levels=symbol)]  # Fix the ordering of the symbols so that facet_grid doesn't reorder alphabetically
+data[, symbol_f := factor(symbol, levels=unique(symbol))]  # Fix the ordering of the symbols so that facet_grid doesn't reorder alphabetically
 adjusted <- data[price_type=='adjusted',]
 symbols_per_page <- 3
 unique_symbols <- symbols[, symbol]
